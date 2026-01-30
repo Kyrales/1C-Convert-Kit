@@ -83,35 +83,35 @@ IF exist "%V8_SRC_PATH%\DT-INF\" (
 )
 md "%VALIDATE_PATH%"
 IF /i "%V8_SRC_PATH:~-3%" equ ".cf" (
-    call %~dp0conf2edt.cmd "%V8_SRC_PATH%" "%VALIDATE_PATH%"
+    call %~dp0..\..\configuration\legacy\conf2edt.cmd "%V8_SRC_PATH%" "%VALIDATE_PATH%"
     goto validate
 )
 IF /i "%V8_SRC_PATH:~-4%" equ ".cfe" (
-    call %~dp0ext2edt.cmd "%V8_SRC_PATH%" "%VALIDATE_PATH%" "%EXT_NAME%"
+    call %~dp0..\..\extension\legacy\ext2edt.cmd "%V8_SRC_PATH%" "%VALIDATE_PATH%" "%EXT_NAME%"
     goto validate
 )
 IF exist "%V8_SRC_PATH%\Configuration.xml" (
     FOR /F "delims=" %%t IN ('find /i "<objectBelonging>" "%V8_SRC_PATH%\Configuration.xml"') DO (
-        call %~dp0ext2edt.cmd "%V8_SRC_PATH%" "%VALIDATE_PATH%"
+        call %~dp0..\..\extension\legacy\ext2edt.cmd "%V8_SRC_PATH%" "%VALIDATE_PATH%"
         goto validate
     )
-    call %~dp0conf2edt.cmd "%V8_SRC_PATH%" "%VALIDATE_PATH%"
+    call %~dp0..\..\configuration\legacy\conf2edt.cmd "%V8_SRC_PATH%" "%VALIDATE_PATH%"
     goto validate
 )
 IF /i "%V8_SRC_PATH:~0,2%" equ "/F" (
-    call %~dp0conf2edt.cmd "%V8_SRC_PATH%" "%VALIDATE_PATH%"
+    call %~dp0..\..\configuration\legacy\conf2edt.cmd "%V8_SRC_PATH%" "%VALIDATE_PATH%"
     goto validate
 )
 IF /i "%V8_SRC_PATH:~0,2%" equ "/S" (
-    call %~dp0conf2edt.cmd "%V8_SRC_PATH%" "%VALIDATE_PATH%"
+    call %~dp0..\..\configuration\legacy\conf2edt.cmd "%V8_SRC_PATH%" "%VALIDATE_PATH%"
     goto validate
 )
 IF exist "%V8_SRC_PATH%\1cv8.1cd" (
-    call %~dp0conf2edt.cmd "%V8_SRC_PATH%" "%VALIDATE_PATH%"
+    call %~dp0..\..\configuration\legacy\conf2edt.cmd "%V8_SRC_PATH%" "%VALIDATE_PATH%"
     goto validate
 )
 FOR /F "delims=" %%f IN ('dir /b /a-d "%V8_SRC_PATH%\*.epf" "%V8_SRC_PATH%\*.erf" "%V8_SRC_PATH%\*.xml" "%V8_SRC_PATH%\ExternalDataProcessors\*.xml" "%V8_SRC_PATH%\ExternalReports\*.xml"') DO (
-    call %~dp0dp2edt.cmd "%V8_SRC_PATH%" "%VALIDATE_PATH%"
+    call %~dp0..\..\dataprocessor\legacy\dp2edt.cmd "%V8_SRC_PATH%" "%VALIDATE_PATH%"
     goto validate
 )
 

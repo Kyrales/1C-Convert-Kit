@@ -7,11 +7,11 @@
 import sys
 from pathlib import Path
 
-# Добавляем путь к projects для импорта (файл находится в projects/tests/)
-parent_dir = Path(__file__).parent.parent
-sys.path.insert(0, str(parent_dir))
+# Добавляем путь к src для импорта (файл находится в tests/unit/)
+project_root = Path(__file__).parent.parent.parent
+sys.path.insert(0, str(project_root / 'src'))
 
-from convert import load_env_file
+from core.convert import load_env_file
 
 def test_details_table_logic():
     """
@@ -26,8 +26,9 @@ def test_details_table_logic():
     print("ТЕСТ ЛОГИКИ ТАБЛИЦЫ ДЕТАЛЕЙ ПРОЕКТА")
     print("="*80)
     
-    # Пути к тестовым файлам (файл находится в projects/tests/)
-    projects_dir = Path(__file__).parent.parent
+    # Пути к тестовым файлам (файл находится в tests/unit/)
+    project_root = Path(__file__).parent.parent.parent
+    projects_dir = project_root / 'projects'
     base_env_files = list(projects_dir.glob('*.env'))
     
     if not base_env_files:
@@ -122,9 +123,6 @@ def test_details_table_logic():
     print("\n" + "="*80)
     print("✓ ВСЕ ПРОВЕРКИ ПРОЙДЕНЫ")
     print("="*80)
-    
-    return True
 
 if __name__ == '__main__':
-    success = test_details_table_logic()
-    sys.exit(0 if success else 1)
+    test_details_table_logic()

@@ -14,7 +14,7 @@ SETLOCAL ENABLEDELAYEDEXPANSION
 IF not defined V8_ENCODING set V8_ENCODING=65001
 chcp %V8_ENCODING% > nul
 
-set CONVERT_VERSION=UNKNOWN
+set CONVERT_VERSION="2.0"
 IF exist "%~dp0..\VERSION" FOR /F "usebackq tokens=* delims=" %%i IN ("%~dp0..\VERSION") DO set CONVERT_VERSION=%%i
 echo 1C files converter v.%CONVERT_VERSION%
 echo ======
@@ -22,10 +22,24 @@ echo [INFO] Convert 1C configuration to 1C configuration file ^(*.cf^)
 
 set ERROR_CODE=0
 
-IF exist "%cd%\.env" IF "%V8_SKIP_ENV%" neq "1" (
-    FOR /F "usebackq tokens=*" %%a in ("%cd%\.env") DO (
-        FOR /F "tokens=1* delims==" %%b IN ("%%a") DO ( 
-            IF not defined %%b set "%%b=%%c"
+REM Определение пути к файлу .env
+set ENV_FILE=
+IF "%~3" neq "" (
+    REM Если передан третий параметр - используем его как путь к .env
+    set ENV_FILE=%~3
+) ELSE (
+    REM Иначе ищем .env в текущем каталоге
+    IF exist "%cd%\.env" set ENV_FILE=%cd%\.env
+)
+
+REM Чтение переменных из .env файла
+IF defined ENV_FILE IF "%V8_SKIP_ENV%" neq "1" (
+    IF exist "%ENV_FILE%" (
+        echo [INFO] Reading environment variables from "%ENV_FILE%"
+        FOR /F "usebackq tokens=*" %%a in ("%ENV_FILE%") DO (
+            FOR /F "tokens=1* delims==" %%b IN ("%%a") DO ( 
+                IF not defined %%b set "%%b=%%c"
+            )
         )
     )
 )
@@ -202,12 +216,14 @@ IF not ERRORLEVEL 0 (
 echo [INFO] Export infobase "%IB_PATH%" configuration to "%V8_DST_PATH%"...
 IF "%V8_CONVERT_TOOL%" equ "designer" (
     set V8_DESIGNER_LOG=%LOCAL_TEMP%\v8_designer_output.log
+    echo [DEBUG] %V8_TOOL% DESIGNER /IBConnectionString %V8_IB_CONNECTION% /N"%V8_IB_USER%" /P"%V8_IB_PWD%" /DisableStartupDialogs /Out "!V8_DESIGNER_LOG!" /DumpCfg  "%V8_DST_PATH%"
     %V8_TOOL% DESIGNER /IBConnectionString %V8_IB_CONNECTION% /N"%V8_IB_USER%" /P"%V8_IB_PWD%" /DisableStartupDialogs /Out "!V8_DESIGNER_LOG!" /DumpCfg  "%V8_DST_PATH%"
     FOR /F "tokens=* delims=" %%i IN (!V8_DESIGNER_LOG!) DO IF "%%i" neq "" echo [WARN] %%i
 ) ELSE (
     IF defined V8_IB_SERVER (
         %IBCMD_TOOL% infobase config save --data="%IBCMD_DATA%" --dbms=%V8_DB_SRV_DBMS% --db-server=%V8_IB_SERVER% --db-name="%V8_IB_NAME%" --db-user="%V8_DB_SRV_USR%" --db-pwd="%V8_DB_SRV_PWD%" --user="%V8_IB_USER%" --password="%V8_IB_PWD%" "%V8_DST_PATH%"
     ) ELSE (
+        echo [DEBUG] %IBCMD_TOOL% infobase config save --data="%IBCMD_DATA%" --db-path="%IB_PATH%" --user="%V8_IB_USER%" --password="%V8_IB_PWD%" "%V8_DST_PATH%"
         %IBCMD_TOOL% infobase config save --data="%IBCMD_DATA%" --db-path="%IB_PATH%" --user="%V8_IB_USER%" --password="%V8_IB_PWD%" "%V8_DST_PATH%"
     )
 )

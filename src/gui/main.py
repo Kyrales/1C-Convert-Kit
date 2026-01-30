@@ -18,7 +18,7 @@ except ImportError:
     import PySimpleGUI as sg
 
 # Импортируем функции из convert.py
-from convert import load_env_file
+from ..core.convert import load_env_file
 
 # ============================================================================
 # КОНСТАНТЫ
@@ -40,10 +40,10 @@ COLORS = {
 }
 
 # Пути
-SCRIPT_DIR = Path(__file__).parent
-PROJECTS_DIR = SCRIPT_DIR
-CONVERT_SCRIPT = SCRIPT_DIR / 'convert.py'
-PARAMS_DESC_FILE = SCRIPT_DIR / 'params_descriptions.json'
+SCRIPT_DIR = Path(__file__).parent.parent.parent  # Корень проекта
+PROJECTS_DIR = SCRIPT_DIR / 'projects'
+CONVERT_SCRIPT = SCRIPT_DIR / 'src' / 'core' / 'convert.py'
+PARAMS_DESC_FILE = SCRIPT_DIR / 'src' / 'config' / 'params_descriptions.json'
 
 # ============================================================================
 # КЛАСС ДЛЯ СКАНИРОВАНИЯ ПРОЕКТОВ
@@ -516,7 +516,7 @@ class CyberpunkGUI:
             base_env_name = None
             
             # 1. Сначала ищем базовый .env в корне projects/ (любой .env файл не в подпапках)
-            base_env_files = [f for f in SCRIPT_DIR.glob('*.env') if f.is_file()]
+            base_env_files = [f for f in PROJECTS_DIR.glob('*.env') if f.is_file()]
             if base_env_files:
                 # Берем первый найденный
                 base_env_path = base_env_files[0]

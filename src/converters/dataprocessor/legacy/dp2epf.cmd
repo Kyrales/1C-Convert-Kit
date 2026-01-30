@@ -14,7 +14,7 @@ SETLOCAL ENABLEDELAYEDEXPANSION
 IF not defined V8_ENCODING set V8_ENCODING=65001
 chcp %V8_ENCODING% > nul
 
-set CONVERT_VERSION=UNKNOWN
+set CONVERT_VERSION="2.0"
 IF exist "%~dp0..\VERSION" FOR /F "usebackq tokens=* delims=" %%i IN ("%~dp0..\VERSION") DO set CONVERT_VERSION=%%i
 echo 1C files converter v.%CONVERT_VERSION%
 echo ======
@@ -22,10 +22,24 @@ echo [INFO] Convert 1C external data processors ^& reports to binary format ^(*.
 
 set ERROR_CODE=0
 
-IF exist "%cd%\.env" IF "%V8_SKIP_ENV%" neq "1" (
-    FOR /F "usebackq tokens=*" %%a in ("%cd%\.env") DO (
-        FOR /F "tokens=1* delims==" %%b IN ("%%a") DO ( 
-            IF not defined %%b set "%%b=%%c"
+REM Определение пути к файлу .env
+set ENV_FILE=
+IF "%~3" neq "" (
+    REM Если передан третий параметр - используем его как путь к .env
+    set ENV_FILE=%~3
+) ELSE (
+    REM Иначе ищем .env в текущем каталоге
+    IF exist "%cd%\.env" set ENV_FILE=%cd%\.env
+)
+
+REM Чтение переменных из .env файла
+IF defined ENV_FILE IF "%V8_SKIP_ENV%" neq "1" (
+    IF exist "%ENV_FILE%" (
+        echo [INFO] Reading environment variables from "%ENV_FILE%"
+        FOR /F "usebackq tokens=*" %%a in ("%ENV_FILE%") DO (
+            FOR /F "tokens=1* delims==" %%b IN ("%%a") DO ( 
+                IF not defined %%b set "%%b=%%c"
+            )
         )
     )
 )
@@ -143,7 +157,7 @@ IF exist "%V8_BASE_IB%\1cv8.1cd" (
 IF "%V8_BASE_CONFIG%" equ "" goto export
 
 IF not exist "%IB_PATH%" md "%IB_PATH%"
-call %~dp0conf2ib.cmd "%V8_BASE_CONFIG%" "%IB_PATH%"
+call %~dp0..\..\configuration\legacy\conf2ib.cmd "%V8_BASE_CONFIG%" "%IB_PATH%"
 IF ERRORLEVEL 0 goto export
 
 echo [ERROR] Error cheking type of basic configuration "%V8_BASE_CONFIG%"!

@@ -30,6 +30,19 @@ IF exist "%cd%\.env" IF "%V8_SKIP_ENV%" neq "1" (
     )
 )
 
+IF defined V8_ENV_PATH (
+    IF exist "%V8_ENV_PATH%" (
+        echo [INFO] Loading environment variables from "%V8_ENV_PATH%"
+        FOR /F "usebackq tokens=*" %%a in ("%V8_ENV_PATH%") DO (
+            FOR /F "tokens=1* delims==" %%b IN ("%%a") DO ( 
+                IF not defined %%b set "%%b=%%c"
+            )
+        )
+    ) ELSE (
+        echo [WARN] Environment file "%V8_ENV_PATH%" not found, using default settings
+    )
+)
+
 IF not defined V8_VERSION set V8_VERSION=8.3.23.2040
 IF not defined V8_TEMP set V8_TEMP=%TEMP%\1c
 
@@ -64,6 +77,9 @@ IF "%ARG%" neq "" set V8_SRC_PATH=%ARG%
 set ARG=%2
 IF defined ARG set ARG=%ARG:"=%
 IF "%ARG%" neq "" set V8_DST_PATH=%ARG%
+set ARG=%3
+IF defined ARG set ARG=%ARG:"=%
+IF "%ARG%" neq "" set V8_ENV_PATH=%ARG%
 
 IF not defined V8_SRC_PATH (
     echo [ERROR] Missed parameter 1 - "path to 1C configuration source (1C configuration file (*.cf), infobase or 1C:Designer XML files)"
@@ -78,11 +94,12 @@ IF %ERROR_CODE% neq 0 (
     echo [ERROR] Input parameters error. Expected:
     echo     %%1 - path to 1C configuration source ^(1C configuration file ^(*.cf^), infobase or 1C:Designer XML files^)
     echo     %%2 - path to folder to save configuration files in 1C:EDT project format
+    echo     %%3 - ^(optional^) path to .env file with environment variables
     echo.
     goto finally
 )
 
-echo [INFO] Clear temporary files...
+echo [INFO] Clear temporary files 1...
 IF exist "%LOCAL_TEMP%" rd /S /Q "%LOCAL_TEMP%"
 md "%LOCAL_TEMP%"
 IF exist "%V8_DST_PATH%" IF "%V8_CONF_CLEAN_DST%" equ "1" (
@@ -149,6 +166,7 @@ IF "%V8_CONVERT_TOOL%" equ "designer" (
         %IBCMD_TOOL% infobase create --data="%IBCMD_DATA%" --db-path="%IB_PATH%" --create-database --load="%V8_SRC_PATH%"
     )
 )
+timeout /t 5
 IF not ERRORLEVEL 0 (
     set ERROR_CODE=%ERRORLEVEL%
     goto finally
@@ -165,11 +183,13 @@ IF "%V8_CONVERT_TOOL%" equ "designer" (
     %V8_TOOL% DESIGNER /IBConnectionString %V8_IB_CONNECTION% /N"%V8_IB_USER%" /P"%V8_IB_PWD%" /DisableStartupDialogs /Out "!V8_DESIGNER_LOG!" /DumpConfigToFiles "%XML_PATH%" -force
     FOR /F "tokens=* delims=" %%i IN (!V8_DESIGNER_LOG!) DO IF "%%i" neq "" echo [WARN] %%i
 ) ELSE (
+    echo [INFO] Start export configuration IBCMD
     set IBCMD_EXPORT_FLAGS=--force
     IF exist "%V8_DST_PATH%\Configuration.xml" IF exist "%V8_DST_PATH%\ConfigDumpInfo.xml" set IBCMD_EXPORT_FLAGS=!IBCMD_EXPORT_FLAGS! --sync
     IF defined V8_IB_SERVER (
         %IBCMD_TOOL% infobase config export --data="%IBCMD_DATA%" --dbms=%V8_DB_SRV_DBMS% --db-server=%V8_IB_SERVER% --db-name="%V8_IB_NAME%" --db-user="%V8_DB_SRV_USR%" --db-pwd="%V8_DB_SRV_PWD%" --user="%V8_IB_USER%" --password="%V8_IB_PWD%" !IBCMD_EXPORT_FLAGS! "%XML_PATH%"
     ) ELSE (
+        echo [INFO] Comand: %IBCMD_TOOL% infobase config export --data="%IBCMD_DATA%" --db-path="%IB_PATH%" --user="%V8_IB_USER%" --password="%V8_IB_PWD%" !IBCMD_EXPORT_FLAGS! "%XML_PATH%"
         %IBCMD_TOOL% infobase config export --data="%IBCMD_DATA%" --db-path="%IB_PATH%" --user="%V8_IB_USER%" --password="%V8_IB_PWD%" !IBCMD_EXPORT_FLAGS! "%XML_PATH%"
     )
 )
@@ -228,7 +248,7 @@ set ERROR_CODE=%ERRORLEVEL%
 
 :finally
 
-echo [INFO] Clear temporary files...
+echo [INFO] Clear temporary files 2...
 IF exist "%LOCAL_TEMP%" rd /S /Q "%LOCAL_TEMP%"
 
 exit /b %ERROR_CODE%

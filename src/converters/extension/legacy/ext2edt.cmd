@@ -197,7 +197,7 @@ IF defined V8_BASE_CONFIG (
 )
 
 IF not exist "%IB_PATH%" md "%IB_PATH%"
-call %~dp0conf2ib.cmd "%V8_BASE_CONFIG%" "%IB_PATH%"
+call %~dp0..\..\configuration\legacy\conf2ib.cmd "%V8_BASE_CONFIG%" "%IB_PATH%"
 IF ERRORLEVEL 0 goto load_cfe
 
 echo [ERROR] Error cheking type of basic configuration "%V8_BASE_CONFIG%"!

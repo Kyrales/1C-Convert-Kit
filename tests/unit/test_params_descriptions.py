@@ -7,9 +7,9 @@
 import json
 from pathlib import Path
 
-# Пути (файл находится в projects/tests/, JSON в projects/)
-SCRIPT_DIR = Path(__file__).parent.parent
-PARAMS_DESC_FILE = SCRIPT_DIR / 'params_descriptions.json'
+# Пути (файл находится в tests/unit/, JSON в src/config/)
+SCRIPT_DIR = Path(__file__).parent.parent.parent  # Корень проекта
+PARAMS_DESC_FILE = SCRIPT_DIR / 'src' / 'config' / 'params_descriptions.json'
 
 
 def test_json_file_exists():
@@ -26,7 +26,6 @@ def test_json_file_valid():
         with open(PARAMS_DESC_FILE, 'r', encoding='utf-8') as f:
             data = json.load(f)
         print(f"   ✓ JSON валиден")
-        return data
     except json.JSONDecodeError as e:
         assert False, f"Ошибка парсинга JSON: {e}"
 

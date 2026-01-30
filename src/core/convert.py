@@ -9,6 +9,7 @@ import sys
 import subprocess
 import argparse
 from pathlib import Path
+from typing import Optional
 
 
 # ANSI цветовые коды для Windows
@@ -49,6 +50,34 @@ def print_warning(message):
 def print_success(message):
     """Выводит сообщение об успехе зеленым цветом"""
     print(f"{Colors.GREEN}[SUCCESS]{Colors.RESET} {message}")
+
+
+def find_legacy_script(script_name: str) -> Optional[Path]:
+    """
+    Находит legacy CMD скрипт в соответствующей папке
+    
+    Args:
+        script_name: имя скрипта (например: dp2epf.cmd, conf2cf.cmd)
+        
+    Returns:
+        Path: путь к скрипту или None если не найден
+    """
+    converters_dir = Path(__file__).parent.parent / 'converters'
+    
+    # Определяем тип скрипта по имени
+    if script_name.startswith('conf'):
+        legacy_dir = converters_dir / 'configuration' / 'legacy'
+    elif script_name.startswith('dp'):
+        legacy_dir = converters_dir / 'dataprocessor' / 'legacy'
+    elif script_name.startswith('ext'):
+        legacy_dir = converters_dir / 'extension' / 'legacy'
+    elif script_name.startswith('edt'):
+        legacy_dir = converters_dir / 'validation' / 'legacy'
+    else:
+        return None
+    
+    script_path = legacy_dir / script_name
+    return script_path if script_path.exists() else None
 
 
 def load_env_file(env_path, silent=False):
@@ -220,16 +249,18 @@ def run_conversion(env_files, output_path=None):
         print_error("Переменная ScriptName не определена в .env файлах")
         return 1
     
-    # Скрипт должен находиться в папке projects/scripts относительно convert.py
-    script_dir = Path(__file__).parent / 'scripts'
-    conversion_script = script_dir / script_name
+    # Ищем legacy скрипт в соответствующей папке
+    conversion_script = find_legacy_script(script_name)
     
-    if not conversion_script.exists():
-        print_error(f"Скрипт {script_name} не найден: {conversion_script}")
-        print_error(f"Убедитесь, что скрипт находится в папке: {script_dir}")
+    if not conversion_script:
+        print_error(f"Скрипт {script_name} не найден")
+        print_error(f"Проверьте, что скрипт находится в папке src/converters/*/legacy/")
         return 1
     
     print_info(f"Используется скрипт конвертации: {conversion_script}")
+    
+    # Получаем директорию скрипта для запуска
+    script_dir = conversion_script.parent
     
     # Получаем пути из переменных окружения
     src_path = env_vars.get('V8_SRC_PATH', '')
@@ -430,12 +461,13 @@ def main():
     
     # Собираем все .env файлы
     all_env_files = []
-    script_dir = Path(__file__).parent
+    script_dir = Path(__file__).parent.parent.parent  # Корень проекта
+    projects_dir = script_dir / 'projects'
     
     if not args.project_path:
-        # Если путь не указан, ищем все .env в папке скрипта
-        print_info(f"Параметр --env не указан, поиск .env файлов в: {script_dir}")
-        env_files = find_env_files(script_dir)
+        # Если путь не указан, ищем все .env в папке projects
+        print_info(f"Параметр --env не указан, поиск .env файлов в: {projects_dir}")
+        env_files = find_env_files(projects_dir)
         
         if not env_files:
             print_error("Не найдено ни одного .env файла")
@@ -455,16 +487,16 @@ def main():
         
         print_info(f"Папка проекта: {project_path}")
         
-        # 1. Сначала ищем базовый .env в папке со скриптом convert.py
-        # Ищем любой .env файл в корне (не в подпапках)
-        base_env_files = [f for f in script_dir.glob('*.env') if f.is_file()]
+        # 1. Сначала ищем базовый .env в папке projects/
+        # Ищем любой .env файл в корне projects/ (не в подпапках)
+        base_env_files = [f for f in projects_dir.glob('*.env') if f.is_file()]
         if base_env_files:
             # Берем первый найденный (или можно отсортировать)
             base_env = base_env_files[0]
             print_info(f"Найден базовый .env: {base_env}")
             all_env_files.append(str(base_env))
         else:
-            print_warning(f"Базовый .env файл не найден в: {script_dir}")
+            print_warning(f"Базовый .env файл не найден в: {projects_dir}")
         
         # 2. Затем ищем все .env файлы в папке проекта
         project_env_files = find_env_files(project_path)

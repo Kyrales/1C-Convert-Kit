@@ -1,5 +1,5 @@
 @echo off
 chcp 65001 > nul
 cd /d "%~dp0"
-python src\gui\main.py
+python -m src.gui.main
 pause
