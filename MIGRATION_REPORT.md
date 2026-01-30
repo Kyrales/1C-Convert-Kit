@@ -203,3 +203,89 @@ tests/unit/test_params_descriptions.py::test_real_scenario PASSED              [
 - `tests/unit/test_details_table.py` - обновлены импорты и пути
 
 **Статус:** Все unit-тесты адаптированы и работают корректно ✅
+
+
+---
+
+## 🧪 Обновление: Скрипты запуска тестов (30.01.2026 16:40)
+
+### Созданные файлы:
+
+1. **tests/run_tests.cmd** - скрипт запуска тестов для Windows
+   - Проверка наличия pytest
+   - Запуск всех тестов с подробным выводом
+   - Цветной вывод результатов
+   - Пауза в конце для просмотра результатов
+
+2. **tests/run_tests.sh** - скрипт запуска тестов для Linux/Mac
+   - Аналогичная функциональность для Unix-систем
+   - Исполняемые права
+
+3. **tests/README.md** - документация по тестам
+   - Описание структуры тестов
+   - Инструкции по запуску
+   - Примеры использования pytest
+   - Руководство по написанию новых тестов
+   - Полезные команды для отладки
+
+### Возможности скриптов:
+
+- ✅ Автоматическая проверка наличия pytest
+- ✅ Запуск всех тестов в каталоге tests/
+- ✅ Подробный вывод результатов (-v --tb=short)
+- ✅ Цветной вывод (--color=yes)
+- ✅ Информативные сообщения об успехе/ошибке
+- ✅ Правильный exit code для CI/CD
+
+### Использование:
+
+**Windows:**
+```cmd
+tests\run_tests.cmd
+```
+
+**Linux/Mac:**
+```bash
+./tests/run_tests.sh
+```
+
+**Прямой вызов pytest:**
+```bash
+pytest tests/ -v
+```
+
+### Результат запуска:
+
+```
+================================================================================
+Запуск тестов 1C Convert Kit
+================================================================================
+
+[INFO] Запуск всех тестов...
+
+================================ test session starts ================================
+collected 8 items
+
+tests/unit/test_details_table.py::test_details_table_logic PASSED              [ 12%]
+tests/unit/test_params_descriptions.py::test_json_file_exists PASSED           [ 25%]
+tests/unit/test_params_descriptions.py::test_json_file_valid PASSED            [ 37%]
+tests/unit/test_params_descriptions.py::test_json_structure PASSED             [ 50%]
+tests/unit/test_params_descriptions.py::test_common_params PASSED              [ 62%]
+tests/unit/test_params_descriptions.py::test_script_specific_params PASSED     [ 75%]
+tests/unit/test_params_descriptions.py::test_get_description_function PASSED   [ 87%]
+tests/unit/test_params_descriptions.py::test_real_scenario PASSED              [100%]
+
+================================= 8 passed in 0.02s =================================
+
+================================================================================
+[SUCCESS] Все тесты пройдены успешно!
+================================================================================
+```
+
+### Обновленные файлы:
+- `tests/run_tests.cmd` - создан ✅
+- `tests/run_tests.sh` - создан ✅
+- `tests/README.md` - создан ✅
+- `TODO.md` - обновлен статус ✅
+
+**Статус:** Инфраструктура тестирования готова к использованию ✅

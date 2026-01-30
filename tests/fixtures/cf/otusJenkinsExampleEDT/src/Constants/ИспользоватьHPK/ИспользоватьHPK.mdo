@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mdclass:Constant xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:core="http://g5.1c.ru/v8/dt/mcore" xmlns:mdclass="http://g5.1c.ru/v8/dt/metadata/mdclass" uuid="03807155-e59c-4a15-9318-6bebb84d8cef">
+  <producedTypes>
+    <managerType typeId="e5527794-ef1d-4a95-8ca4-6356de5fb6c7" valueTypeId="e5c0b139-12d5-43ae-a5bf-e331fa1e5dae"/>
+    <valueManagerType typeId="a9f88be5-107f-4c0a-ab89-4c148faaa3ad" valueTypeId="9fb40004-b12e-4e7e-ac07-aa34633c15dd"/>
+    <valueKeyType typeId="01c59c20-7bc6-41c8-a449-4b248a671ad4" valueTypeId="51cdbf5d-cab3-4a19-a19b-6475bbfd57a5"/>
+  </producedTypes>
+  <name>ИспользоватьHPK</name>
+  <synonym>
+    <key>ru</key>
+    <value>Использовать HPK</value>
+  </synonym>
+  <type>
+    <types>Boolean</types>
+  </type>
+  <minValue xsi:type="core:UndefinedValue"/>
+  <maxValue xsi:type="core:UndefinedValue"/>
+  <dataLockControlMode>Managed</dataLockControlMode>
+</mdclass:Constant>

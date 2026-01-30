@@ -61,3 +61,5 @@ desktop.ini
 
 # Тестовые данные
 tests/fixtures/bin/*
+tests/fixtures/output/*
+!tests/fixtures/output/.gitkeep

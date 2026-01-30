@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mdclass:Constant xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:core="http://g5.1c.ru/v8/dt/mcore" xmlns:mdclass="http://g5.1c.ru/v8/dt/metadata/mdclass" uuid="0d36129d-aa51-4326-a593-922149eea0b6">
+  <producedTypes>
+    <managerType typeId="a66a4688-cf20-4264-b154-6f45ab224a81" valueTypeId="96baa518-ae26-4f4f-bf60-183274ee1275"/>
+    <valueManagerType typeId="4cbec6ff-5afe-417c-9f9b-2af1ff1c5df4" valueTypeId="7c2730db-880b-469a-8a37-8e5166f44d00"/>
+    <valueKeyType typeId="a2767697-227f-4dc5-8abc-bc7014668ee1" valueTypeId="38e4eb7d-3a01-4634-9099-880e99e5a923"/>
+  </producedTypes>
+  <name>МаркерДоступаHPK</name>
+  <synonym>
+    <key>ru</key>
+    <value>Маркер доступа HPK</value>
+  </synonym>
+  <type>
+    <types>String</types>
+    <stringQualifiers/>
+  </type>
+  <minValue xsi:type="core:UndefinedValue"/>
+  <maxValue xsi:type="core:UndefinedValue"/>
+  <dataLockControlMode>Managed</dataLockControlMode>
+</mdclass:Constant>

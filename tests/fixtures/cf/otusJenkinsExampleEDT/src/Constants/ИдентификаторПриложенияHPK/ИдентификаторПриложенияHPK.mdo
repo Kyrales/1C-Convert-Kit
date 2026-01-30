@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<mdclass:Constant xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:core="http://g5.1c.ru/v8/dt/mcore" xmlns:mdclass="http://g5.1c.ru/v8/dt/metadata/mdclass" uuid="20f5a953-00ae-4073-a9b2-619f24d15225">
+  <producedTypes>
+    <managerType typeId="abdf26ff-1595-4920-bb6f-253f6e554a9b" valueTypeId="ad92267b-6737-425b-a02d-33a653b07414"/>
+    <valueManagerType typeId="3f715bc9-fc2d-45ab-852a-09a2e7cb59ca" valueTypeId="9478c102-bcf9-45d3-8521-087f92d9a3d3"/>
+    <valueKeyType typeId="6b885f4a-c3a4-49b2-9931-c0f45025eac4" valueTypeId="99eb52f8-65d8-4c4b-90b3-2d8479d56c77"/>
+  </producedTypes>
+  <name>ИдентификаторПриложенияHPK</name>
+  <synonym>
+    <key>ru</key>
+    <value>Идентификатор приложения HPK</value>
+  </synonym>
+  <type>
+    <types>String</types>
+    <stringQualifiers/>
+  </type>
+  <minValue xsi:type="core:UndefinedValue"/>
+  <maxValue xsi:type="core:UndefinedValue"/>
+  <dataLockControlMode>Managed</dataLockControlMode>
+</mdclass:Constant>

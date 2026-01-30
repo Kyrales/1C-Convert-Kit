@@ -203,6 +203,10 @@ def find_legacy_script(script_name: str) -> Optional[Path]:
   - test_params_descriptions.py - обновлены пути к JSON
   - test_details_table.py - обновлены импорты и пути
 - [x] Все тесты проходят успешно (8/8 passed)
+- [x] Созданы скрипты запуска тестов
+  - tests/run_tests.cmd - для Windows
+  - tests/run_tests.sh - для Linux/Mac
+  - tests/README.md - документация по тестам
 - [ ] `tests/conftest.py` - pytest конфигурация
   - Фикстуры для тестовых проектов
   - Моки для 1С инструментов
