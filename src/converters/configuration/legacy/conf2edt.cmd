@@ -22,24 +22,25 @@ echo [INFO] Convert 1C configuration to 1C:EDT project
 
 set ERROR_CODE=0
 
-IF exist "%cd%\.env" IF "%V8_SKIP_ENV%" neq "1" (
-    FOR /F "usebackq tokens=*" %%a in ("%cd%\.env") DO (
-        FOR /F "tokens=1* delims==" %%b IN ("%%a") DO ( 
-            IF not defined %%b set "%%b=%%c"
-        )
-    )
+REM Определение пути к файлу .env
+set ENV_FILE=
+IF "%~3" neq "" (
+    REM Если передан третий параметр - используем его как путь к .env
+    set ENV_FILE=%~3
+) ELSE (
+    REM Иначе ищем .env в текущем каталоге
+    IF exist "%cd%\.env" set ENV_FILE=%cd%\.env
 )
 
-IF defined V8_ENV_PATH (
-    IF exist "%V8_ENV_PATH%" (
-        echo [INFO] Loading environment variables from "%V8_ENV_PATH%"
-        FOR /F "usebackq tokens=*" %%a in ("%V8_ENV_PATH%") DO (
+REM Чтение переменных из .env файла
+IF defined ENV_FILE IF "%V8_SKIP_ENV%" neq "1" (
+    IF exist "%ENV_FILE%" (
+        echo [INFO] Reading environment variables from "%ENV_FILE%"
+        FOR /F "usebackq tokens=*" %%a in ("%ENV_FILE%") DO (
             FOR /F "tokens=1* delims==" %%b IN ("%%a") DO ( 
                 IF not defined %%b set "%%b=%%c"
             )
         )
-    ) ELSE (
-        echo [WARN] Environment file "%V8_ENV_PATH%" not found, using default settings
     )
 )
 
@@ -94,7 +95,7 @@ IF %ERROR_CODE% neq 0 (
     echo [ERROR] Input parameters error. Expected:
     echo     %%1 - path to 1C configuration source ^(1C configuration file ^(*.cf^), infobase or 1C:Designer XML files^)
     echo     %%2 - path to folder to save configuration files in 1C:EDT project format
-    echo     %%3 - ^(optional^) path to .env file with environment variables
+    echo     %%3 - ^(optional^) path to .env configuration file
     echo.
     goto finally
 )

@@ -22,10 +22,24 @@ echo [INFO] Convert 1C configuration extension to 1C:EDT project
 
 set ERROR_CODE=0
 
-IF exist "%cd%\.env" IF "%V8_SKIP_ENV%" neq "1" (
-    FOR /F "usebackq tokens=*" %%a in ("%cd%\.env") DO (
-        FOR /F "tokens=1* delims==" %%b IN ("%%a") DO ( 
-            IF not defined %%b set "%%b=%%c"
+REM Определение пути к файлу .env
+set ENV_FILE=
+IF "%~4" neq "" (
+    REM Если передан четвертый параметр - используем его как путь к .env
+    set ENV_FILE=%~4
+) ELSE (
+    REM Иначе ищем .env в текущем каталоге
+    IF exist "%cd%\.env" set ENV_FILE=%cd%\.env
+)
+
+REM Чтение переменных из .env файла
+IF defined ENV_FILE IF "%V8_SKIP_ENV%" neq "1" (
+    IF exist "%ENV_FILE%" (
+        echo [INFO] Reading environment variables from "%ENV_FILE%"
+        FOR /F "usebackq tokens=*" %%a in ("%ENV_FILE%") DO (
+            FOR /F "tokens=1* delims==" %%b IN ("%%a") DO ( 
+                IF not defined %%b set "%%b=%%c"
+            )
         )
     )
 )
@@ -86,6 +100,7 @@ IF %ERROR_CODE% neq 0 (
     echo     %%1 - infobase, path to folder contains 1C extension binary file ^(*.cfe^) or in 1C:Designer XML format
     echo     %%2 - path to folder to save configuration extension in 1C:EDT project format
     echo     %%3 - configuration extension name
+    echo     %%4 - ^(optional^) path to .env configuration file
     echo.
     goto finally
 )
