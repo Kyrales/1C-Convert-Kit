@@ -1,0 +1,21 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Python files
+*.py text eol=lf
+*.pyw text eol=lf
+
+# CMD files (Windows line endings)
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# JSON, YAML
+*.json text eol=lf
+*.yaml text eol=lf
+*.yml text eol=lf
+
+# Markdown
+*.md text eol=lf
+
+# Shell scripts
+*.sh text eol=lf

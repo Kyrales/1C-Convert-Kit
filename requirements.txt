@@ -1,0 +1,5 @@
+# GUI Framework
+FreeSimpleGUI>=5.2.0
+
+# Alternative (requires license)
+# PySimpleGUI>=5.0.10

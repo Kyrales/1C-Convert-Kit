@@ -1,0 +1,5 @@
+# Игнорировать все содержимое проектов
+*
+!.gitignore
+!README.md
+!base_1.env.template
