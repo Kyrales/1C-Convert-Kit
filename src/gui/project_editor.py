@@ -44,10 +44,8 @@ class ProjectEditorDialog:
         
         scripts = []
         for key in self.params_descriptions.keys():
-            if key != 'common' and key.endswith('.cmd'):
-                # Убираем .cmd из имени
-                script_name = key[:-4]
-                scripts.append(script_name)
+            if key != 'common':
+                scripts.append(key)
         
         return sorted(scripts)
     
@@ -72,7 +70,6 @@ class ProjectEditorDialog:
         if not self.params_descriptions:
             return {}
         
-        script_key = f"{script_name}.cmd"
         params = {}
         
         # Добавляем общие параметры
@@ -86,8 +83,8 @@ class ProjectEditorDialog:
                     }
         
         # Добавляем специфичные для скрипта параметры
-        if script_key in self.params_descriptions:
-            for param, desc in self.params_descriptions[script_key].items():
+        if script_name in self.params_descriptions:
+            for param, desc in self.params_descriptions[script_name].items():
                 params[param] = {
                     'description': desc,
                     'required': param in ['V8_SRC_PATH', 'V8_DST_PATH', 'V8_EXT_NAME'],
@@ -334,12 +331,10 @@ class ProjectEditorDialog:
         if not self.params_descriptions:
             return ''
         
-        script_key = f"{script_name}.cmd"
-        
         # Сначала ищем в специфичных для скрипта
-        if script_key in self.params_descriptions:
-            if param_name in self.params_descriptions[script_key]:
-                return self.params_descriptions[script_key][param_name]
+        if script_name in self.params_descriptions:
+            if param_name in self.params_descriptions[script_name]:
+                return self.params_descriptions[script_name][param_name]
         
         # Затем ищем в общих
         if 'common' in self.params_descriptions:

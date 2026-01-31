@@ -39,8 +39,8 @@ def test_json_structure():
     assert 'common' in data, "Отсутствует секция 'common'"
     print(f"   ✓ Секция 'common' найдена")
     
-    assert 'conf2edt.cmd' in data, "Отсутствует секция 'conf2edt.cmd'"
-    print(f"   ✓ Секция 'conf2edt.cmd' найдена")
+    assert 'conf2edt' in data, "Отсутствует секция 'conf2edt'"
+    print(f"   ✓ Секция 'conf2edt' найдена")
     
     print(f"\n   Доступные секции:")
     for key in data.keys():
@@ -69,11 +69,11 @@ def test_common_params():
 
 def test_script_specific_params():
     """Проверяет параметры для конкретного скрипта"""
-    print(f"\n5. Проверка параметров для conf2edt.cmd")
+    print(f"\n5. Проверка параметров для conf2edt")
     with open(PARAMS_DESC_FILE, 'r', encoding='utf-8') as f:
         data = json.load(f)
     
-    script_params = data.get('conf2edt.cmd', {})
+    script_params = data.get('conf2edt', {})
     
     if 'V8_SRC_PATH' in script_params:
         print(f"   ✓ V8_SRC_PATH: {script_params['V8_SRC_PATH']}")
@@ -85,7 +85,7 @@ def test_script_specific_params():
     else:
         print(f"   ✗ V8_DST_PATH: НЕ НАЙДЕН")
     
-    print(f"\n   Всего параметров для 'conf2edt.cmd': {len(script_params)}")
+    print(f"\n   Всего параметров для 'conf2edt': {len(script_params)}")
 
 
 def get_param_description(params_descriptions, param_name, script_name):
@@ -95,7 +95,7 @@ def get_param_description(params_descriptions, param_name, script_name):
     Args:
         params_descriptions: загруженный JSON
         param_name: имя параметра
-        script_name: имя скрипта (например: conf2edt.cmd)
+        script_name: имя скрипта (например: conf2edt)
         
     Returns:
         str: описание параметра или пустая строка
@@ -124,21 +124,21 @@ def test_get_description_function():
         data = json.load(f)
     
     # Тест 1: Параметр из common
-    desc = get_param_description(data, 'V8_VERSION', 'conf2edt.cmd')
+    desc = get_param_description(data, 'V8_VERSION', 'conf2edt')
     print(f"\n   Тест 1: V8_VERSION (из common)")
     print(f"   Результат: {desc}")
     assert desc != '', "Описание не найдено для V8_VERSION"
     print(f"   ✓ Описание найдено")
     
     # Тест 2: Параметр специфичный для скрипта
-    desc = get_param_description(data, 'V8_SRC_PATH', 'conf2edt.cmd')
-    print(f"\n   Тест 2: V8_SRC_PATH (специфичный для conf2edt.cmd)")
+    desc = get_param_description(data, 'V8_SRC_PATH', 'conf2edt')
+    print(f"\n   Тест 2: V8_SRC_PATH (специфичный для conf2edt)")
     print(f"   Результат: {desc}")
     assert desc != '', "Описание не найдено для V8_SRC_PATH"
     print(f"   ✓ Описание найдено")
     
     # Тест 3: Приоритет специфичного над общим
-    desc_specific = get_param_description(data, 'V8_SRC_PATH', 'conf2edt.cmd')
+    desc_specific = get_param_description(data, 'V8_SRC_PATH', 'conf2edt')
     desc_common = data.get('common', {}).get('V8_SRC_PATH', '')
     print(f"\n   Тест 3: Приоритет специфичного описания")
     print(f"   Специфичное: {desc_specific[:50]}...")
@@ -148,7 +148,7 @@ def test_get_description_function():
     print(f"   ✓ Приоритет работает корректно")
     
     # Тест 4: Несуществующий параметр
-    desc = get_param_description(data, 'NONEXISTENT_PARAM', 'conf2edt.cmd')
+    desc = get_param_description(data, 'NONEXISTENT_PARAM', 'conf2edt')
     print(f"\n   Тест 4: Несуществующий параметр")
     print(f"   Результат: '{desc}'")
     assert desc == '', "Для несуществующего параметра должна быть пустая строка"
@@ -174,7 +174,7 @@ def test_real_scenario():
         'V8_DP_CLEAN_DST'
     ]
     
-    script_name = 'conf2edt.cmd'
+    script_name = 'conf2edt'
     
     print(f"\n   Скрипт: {script_name}")
     print(f"   Параметры из uhmrg.env:\n")

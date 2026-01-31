@@ -245,7 +245,7 @@ def run_conversion(env_files, output_path=None, debug=False):
                 print()
                 print_success("Конвертация завершена успешно")
             
-            converter.cleanup()
+            # Очистка уже выполнена внутри converter.convert() в зависимости от V8_TEMP_AFTER_CLEAN
         
         return exit_code
         

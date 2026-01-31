@@ -396,7 +396,10 @@ class BaseConverter(ABC):
         self.dst_path = env_vars.get('V8_DST_PATH', '')
         self.temp_dir: Optional[Path] = None
         self.logger = Logger(silent, debug)
-        self.cleanup_on_success = True
+        
+        # Проверяем параметр V8_TEMP_AFTER_CLEAN
+        temp_after_clean = env_vars.get('V8_TEMP_AFTER_CLEAN', '0')
+        self.cleanup_on_success = temp_after_clean == '1'
         self.cleanup_on_error = False
         self.temp_manager: Optional[TempFileManager] = None
         
@@ -457,10 +460,12 @@ class BaseConverter(ABC):
                 self.logger.success("Конвертация завершена успешно")
                 if self.cleanup_on_success:
                     self.cleanup()
+                else:
+                    self.logger.info(f"Временные файлы сохранены (V8_TEMP_AFTER_CLEAN=0): {self.temp_dir}")
             else:
                 self.logger.error(f"Конвертация завершилась с ошибкой (код: {result})")
                 if not self.cleanup_on_error and self.temp_dir:
-                    self.logger.warning(f"Временные файлы сохранены: {self.temp_dir}")
+                    self.logger.warning(f"Временные файлы сохранены для отладки: {self.temp_dir}")
             
             return result
             
@@ -480,13 +485,13 @@ class BaseConverter(ABC):
                     if line.strip():
                         self.logger.error(f"  {line}")
             if e.temp_dir:
-                self.logger.warning(f"Временные файлы сохранены: {e.temp_dir}")
+                self.logger.warning(f"Временные файлы сохранены для отладки: {e.temp_dir}")
             return 1
             
         except Exception as e:
             self.logger.error(f"Неожиданная ошибка: {e}")
             if self.temp_dir:
-                self.logger.warning(f"Временные файлы сохранены: {self.temp_dir}")
+                self.logger.warning(f"Временные файлы сохранены для отладки: {self.temp_dir}")
             return 1
     
     @abstractmethod
