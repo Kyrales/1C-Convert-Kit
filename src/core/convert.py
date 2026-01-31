@@ -188,11 +188,6 @@ def run_conversion(env_files, output_path=None, debug=False):
         print_error("Переменная ScriptName не определена в .env файлах")
         return 1
     
-    # Убираем расширение .cmd если оно есть (для обратной совместимости)
-    if script_name.endswith('.cmd'):
-        script_name = script_name[:-4]
-        print_info(f"Используется тип конвертации: {script_name}")
-    
     # Получаем конвертер из реестра
     try:
         from converters.registry import ConverterRegistry
