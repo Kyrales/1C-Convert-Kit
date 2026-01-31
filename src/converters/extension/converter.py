@@ -290,7 +290,7 @@ class ExtensionConverter(BaseConverter):
         
         try:
             # Этап 1: Экспорт EDT -> XML
-            self.log_info("Этап 1/4: Экспорт EDT проекта в XML...")
+            self.start_stage("Этап 1/4: Экспорт EDT проекта в XML...")
             self.report_progress("Экспорт EDT -> XML", 10)
             
             result = self.edt_tool.export_to_xml(
@@ -305,18 +305,19 @@ class ExtensionConverter(BaseConverter):
                     temp_dir=self.temp_dir
                 )
             
-            self.log_success("EDT проект успешно экспортирован в XML")
+            self.end_stage("EDT проект успешно экспортирован в XML")
             self.report_progress("Экспорт EDT -> XML завершен", 30)
             
             # Этап 2: Подготовка базовой ИБ
-            self.log_info("Этап 2/4: Подготовка базовой ИБ...")
+            self.start_stage("Этап 2/4: Подготовка базовой ИБ...")
             self.report_progress("Подготовка базовой ИБ", 40)
             
             ib_connection = self._prepare_base_ib()
+            self.end_stage("Базовая ИБ готова")
             self.report_progress("Базовая ИБ готова", 50)
             
             # Этап 3: Загрузка расширения XML -> IB
-            self.log_info("Этап 3/4: Загрузка расширения в ИБ...")
+            self.start_stage("Этап 3/4: Загрузка расширения в ИБ...")
             self.report_progress("Загрузка XML -> IB", 60)
             
             log_file = self.temp_dir / 'load_extension.log'
@@ -334,11 +335,11 @@ class ExtensionConverter(BaseConverter):
                     temp_dir=self.temp_dir
                 )
             
-            self.log_success("Расширение успешно загружено в ИБ")
+            self.end_stage("Расширение успешно загружено в ИБ")
             self.report_progress("Загрузка XML -> IB завершена", 75)
             
             # Этап 4: Выгрузка IB -> CFE
-            self.log_info("Этап 4/4: Выгрузка расширения в CFE файл...")
+            self.start_stage("Этап 4/4: Выгрузка расширения в CFE файл...")
             self.report_progress("Выгрузка IB -> CFE", 80)
             
             output_file = Path(self.dst_path)
@@ -364,7 +365,7 @@ class ExtensionConverter(BaseConverter):
                     temp_dir=self.temp_dir
                 )
             
-            self.log_success(f"Расширение успешно выгружено в: {output_file}")
+            self.end_stage(f"Расширение успешно выгружено в: {output_file}")
             self.report_progress("Конвертация завершена", 100)
             
             return 0
@@ -410,7 +411,7 @@ class ExtensionConverter(BaseConverter):
             self.report_progress("Базовая ИБ готова", 30)
             
             # Этап 2: Загрузка расширения XML -> IB
-            self.log_info("Этап 2/3: Загрузка расширения в ИБ...")
+            self.start_stage("Этап 2/3: Загрузка расширения в ИБ...")
             self.report_progress("Загрузка XML -> IB", 40)
             
             log_file = self.temp_dir / 'load_extension.log'
@@ -428,11 +429,11 @@ class ExtensionConverter(BaseConverter):
                     temp_dir=self.temp_dir
                 )
             
-            self.log_success("Расширение успешно загружено в ИБ")
+            self.end_stage("Расширение успешно загружено в ИБ")
             self.report_progress("Загрузка XML -> IB завершена", 60)
             
             # Этап 3: Выгрузка IB -> CFE
-            self.log_info("Этап 3/3: Выгрузка расширения в CFE файл...")
+            self.start_stage("Этап 3/3: Выгрузка расширения в CFE файл...")
             self.report_progress("Выгрузка IB -> CFE", 70)
             
             output_file = Path(self.dst_path)
@@ -483,7 +484,7 @@ class ExtensionConverter(BaseConverter):
                     temp_dir=self.temp_dir
                 )
             
-            self.log_success(f"Расширение успешно выгружено в: {output_file}")
+            self.end_stage(f"Расширение успешно выгружено в: {output_file}")
             self.report_progress("Конвертация завершена", 100)
             
             return 0
@@ -583,7 +584,7 @@ class ExtensionConverter(BaseConverter):
                     temp_dir=self.temp_dir
                 )
             
-            self.log_success(f"Расширение успешно выгружено в: {output_file}")
+            self.end_stage(f"Расширение успешно выгружено в: {output_file}")
             self.report_progress("Конвертация завершена", 100)
             
             return 0
@@ -653,7 +654,7 @@ class ExtensionConverter(BaseConverter):
             self.report_progress("Базовая ИБ готова", 30)
             
             # Этап 2: Загружаем расширение из CFE в ИБ
-            self.log_info("Этап 2/3: Загрузка расширения из CFE файла...")
+            self.start_stage("Этап 2/3: Загрузка расширения из CFE файла...")
             self.report_progress("Загрузка расширения", 40)
             
             cfe_file = Path(self.src_path)
@@ -688,12 +689,12 @@ class ExtensionConverter(BaseConverter):
                     temp_dir=self.temp_dir
                 )
             
-            self.log_success("Расширение загружено в ИБ")
+            self.end_stage("Расширение загружено в ИБ")
             self.report_progress("Расширение загружено", 60)
             
             # Этап 3: Выгружаем в целевой формат
             if target_format == "XML":
-                self.log_info("Этап 3/3: Выгрузка расширения в XML...")
+                self.start_stage("Этап 3/3: Выгрузка расширения в XML...")
                 self.report_progress("Выгрузка в XML", 70)
                 
                 # Определяем имя выходной директории
@@ -736,10 +737,10 @@ class ExtensionConverter(BaseConverter):
                         temp_dir=self.temp_dir
                     )
                 
-                self.log_success(f"Расширение успешно выгружено в XML: {output_dir}")
+                self.end_stage(f"Расширение успешно выгружено в XML: {output_dir}")
                 
             else:  # EDT
-                self.log_info("Этап 3/3: Выгрузка расширения в EDT...")
+                self.start_stage("Этап 3/3: Выгрузка расширения в EDT...")
                 self.report_progress("Выгрузка в EDT", 70)
                 
                 # Определяем имя выходной директории
@@ -828,7 +829,7 @@ class ExtensionConverter(BaseConverter):
                         temp_dir=self.temp_dir
                     )
                 
-                self.log_success(f"Расширение успешно выгружено в EDT: {output_dir}")
+                self.end_stage(f"Расширение успешно выгружено в EDT: {output_dir}")
             
             self.report_progress("Конвертация завершена", 100)
             return 0

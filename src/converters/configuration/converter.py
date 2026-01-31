@@ -156,7 +156,7 @@ class ConfigurationConverter(BaseConverter):
         
         try:
             # Этап 1: Экспорт EDT -> XML
-            self.log_info("Этап 1/3: Экспорт EDT проекта в XML...")
+            self.start_stage("Этап 1/3: Экспорт EDT проекта в XML...")
             self.report_progress("Экспорт EDT -> XML", 10)
             
             result = self.edt_tool.export_to_xml(
@@ -171,11 +171,11 @@ class ConfigurationConverter(BaseConverter):
                     temp_dir=self.temp_dir
                 )
             
-            self.log_success("EDT проект успешно экспортирован в XML")
+            self.end_stage("EDT проект успешно экспортирован в XML")
             self.report_progress("Экспорт EDT -> XML завершен", 40)
             
             # Этап 2: Загрузка XML -> IB
-            self.log_info("Этап 2/3: Создание временной ИБ и загрузка конфигурации...")
+            self.start_stage("Этап 2/3: Создание временной ИБ и загрузка конфигурации...")
             self.report_progress("Загрузка XML -> IB", 50)
             
             # Формируем строку подключения к временной ИБ
@@ -212,11 +212,11 @@ class ConfigurationConverter(BaseConverter):
                     temp_dir=self.temp_dir
                 )
             
-            self.log_success("Конфигурация успешно загружена в ИБ")
+            self.end_stage("Конфигурация успешно загружена в ИБ")
             self.report_progress("Загрузка XML -> IB завершена", 70)
             
             # Этап 3: Выгрузка IB -> CF
-            self.log_info("Этап 3/3: Выгрузка конфигурации в CF файл...")
+            self.start_stage("Этап 3/3: Выгрузка конфигурации в CF файл...")
             self.report_progress("Выгрузка IB -> CF", 80)
             
             output_file = Path(self.dst_path)
@@ -241,7 +241,7 @@ class ConfigurationConverter(BaseConverter):
                     temp_dir=self.temp_dir
                 )
             
-            self.log_success(f"Конфигурация успешно выгружена в: {output_file}")
+            self.end_stage(f"Конфигурация успешно выгружена в: {output_file}")
             self.report_progress("Конвертация завершена", 100)
             
             return 0
@@ -300,7 +300,7 @@ class ConfigurationConverter(BaseConverter):
                         temp_dir=self.temp_dir
                     )
                 
-                self.log_success("ИБ создана и конфигурация загружена")
+                self.end_stage("ИБ создана и конфигурация загружена")
                 self.report_progress("Сохранение конфигурации в CF", 60)
                 
                 # Сохраняем конфигурацию в CF файл
@@ -321,7 +321,7 @@ class ConfigurationConverter(BaseConverter):
                 self.log_info("Использование designer для конвертации...")
                 
                 # Этап 1: Создание ИБ
-                self.log_info("Этап 1/3: Создание временной ИБ...")
+                self.start_stage("Этап 1/3: Создание временной ИБ...")
                 self.report_progress("Создание ИБ", 20)
                 
                 ib_connection = f"/F{temp_db}"
@@ -335,10 +335,10 @@ class ConfigurationConverter(BaseConverter):
                         temp_dir=self.temp_dir
                     )
                 
-                self.log_success("Временная ИБ создана")
+                self.end_stage("Временная ИБ создана")
                 
                 # Этап 2: Загрузка конфигурации из XML
-                self.log_info("Этап 2/3: Загрузка конфигурации из XML...")
+                self.start_stage("Этап 2/3: Загрузка конфигурации из XML...")
                 self.report_progress("Загрузка XML -> IB", 40)
                 
                 load_log_file = self.temp_dir / 'load_config.log'
@@ -354,10 +354,10 @@ class ConfigurationConverter(BaseConverter):
                         temp_dir=self.temp_dir
                     )
                 
-                self.log_success("Конфигурация загружена в ИБ")
+                self.end_stage("Конфигурация загружена в ИБ")
                 
                 # Этап 3: Выгрузка в CF
-                self.log_info("Этап 3/3: Выгрузка конфигурации в CF файл...")
+                self.start_stage("Этап 3/3: Выгрузка конфигурации в CF файл...")
                 self.report_progress("Выгрузка IB -> CF", 70)
                 
                 output_file = Path(self.dst_path)
@@ -383,7 +383,7 @@ class ConfigurationConverter(BaseConverter):
                     temp_dir=self.temp_dir
                 )
             
-            self.log_success(f"Конфигурация успешно выгружена в: {output_file}")
+            self.end_stage(f"Конфигурация успешно выгружена в: {output_file}")
             self.report_progress("Конвертация завершена", 100)
             
             return 0
@@ -532,7 +532,7 @@ class ConfigurationConverter(BaseConverter):
         
         try:
             # Этап 1: Создаем временную ИБ
-            self.log_info("Этап 1/3: Создание временной ИБ...")
+            self.start_stage("Этап 1/3: Создание временной ИБ...")
             self.report_progress("Создание временной ИБ", 10)
             
             temp_db = self.temp_dir / 'tmp_db'
@@ -550,11 +550,11 @@ class ConfigurationConverter(BaseConverter):
                     temp_dir=self.temp_dir
                 )
             
-            self.log_success("Временная ИБ создана")
+            self.end_stage("Временная ИБ создана")
             self.report_progress("Временная ИБ создана", 30)
             
             # Этап 2: Загружаем конфигурацию из CF в ИБ
-            self.log_info("Этап 2/3: Загрузка конфигурации из CF файла...")
+            self.start_stage("Этап 2/3: Загрузка конфигурации из CF файла...")
             self.report_progress("Загрузка конфигурации", 40)
             
             cf_file = Path(self.src_path)
@@ -586,12 +586,12 @@ class ConfigurationConverter(BaseConverter):
                     temp_dir=self.temp_dir
                 )
             
-            self.log_success("Конфигурация загружена в ИБ")
+            self.end_stage("Конфигурация загружена в ИБ")
             self.report_progress("Конфигурация загружена", 60)
             
             # Этап 3: Выгружаем в целевой формат
             if target_format == "XML":
-                self.log_info("Этап 3/3: Выгрузка конфигурации в XML...")
+                self.start_stage("Этап 3/3: Выгрузка конфигурации в XML...")
                 self.report_progress("Выгрузка в XML", 70)
                 
                 # Определяем имя выходной директории
@@ -633,10 +633,10 @@ class ConfigurationConverter(BaseConverter):
                         temp_dir=self.temp_dir
                     )
                 
-                self.log_success(f"Конфигурация успешно выгружена в XML: {output_dir}")
+                self.end_stage(f"Конфигурация успешно выгружена в XML: {output_dir}")
                 
             else:  # EDT
-                self.log_info("Этап 3/3: Выгрузка конфигурации в EDT...")
+                self.start_stage("Этап 3/3: Выгрузка конфигурации в EDT...")
                 self.report_progress("Выгрузка в EDT", 70)
                 
                 # Определяем имя выходной директории
@@ -724,7 +724,7 @@ class ConfigurationConverter(BaseConverter):
                         temp_dir=self.temp_dir
                     )
                 
-                self.log_success(f"Конфигурация успешно выгружена в EDT: {output_dir}")
+                self.end_stage(f"Конфигурация успешно выгружена в EDT: {output_dir}")
             
             self.report_progress("Конвертация завершена", 100)
             return 0

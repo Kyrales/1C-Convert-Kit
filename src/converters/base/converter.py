@@ -9,11 +9,44 @@ import os
 import sys
 import shutil
 import tempfile
+import time
 from abc import ABC, abstractmethod
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
 from typing import Dict, Optional, List, Callable
+
+
+def format_duration(seconds: float) -> str:
+    """
+    Форматирует длительность в читаемый вид
+    
+    Args:
+        seconds: количество секунд
+        
+    Returns:
+        str: отформатированная строка (например: "2 ч 15 мин 30 сек" или "45 сек")
+    """
+    if seconds < 60:
+        return f"{int(seconds)} сек"
+    
+    minutes = int(seconds // 60)
+    secs = int(seconds % 60)
+    
+    if minutes < 60:
+        if secs > 0:
+            return f"{minutes} мин {secs} сек"
+        return f"{minutes} мин"
+    
+    hours = int(minutes // 60)
+    mins = int(minutes % 60)
+    
+    if mins > 0 and secs > 0:
+        return f"{hours} ч {mins} мин {secs} сек"
+    elif mins > 0:
+        return f"{hours} ч {mins} мин"
+    else:
+        return f"{hours} ч"
 
 
 class Colors:
@@ -366,6 +399,10 @@ class BaseConverter(ABC):
         self.cleanup_on_success = True
         self.cleanup_on_error = False
         self.temp_manager: Optional[TempFileManager] = None
+        
+        # Отслеживание времени
+        self.stage_start_time: Optional[float] = None
+        self.conversion_start_time: Optional[float] = None
     
     def validate(self) -> None:
         """
@@ -531,3 +568,28 @@ class BaseConverter(ABC):
     def log_success(self, message: str):
         """Логирует сообщение об успехе."""
         self.logger.success(message)
+    
+    def start_stage(self, stage_name: str):
+        """
+        Начинает новый этап с измерением времени.
+        
+        Args:
+            stage_name: название этапа
+        """
+        self.stage_start_time = time.time()
+        self.log_info(stage_name)
+    
+    def end_stage(self, success_message: str):
+        """
+        Завершает этап и выводит время выполнения.
+        
+        Args:
+            success_message: сообщение об успешном завершении
+        """
+        if self.stage_start_time is not None:
+            duration = time.time() - self.stage_start_time
+            duration_str = format_duration(duration)
+            self.log_success(f"{success_message}. Время выполнения: {duration_str}")
+            self.stage_start_time = None
+        else:
+            self.log_success(success_message)

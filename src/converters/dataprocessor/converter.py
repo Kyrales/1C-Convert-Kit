@@ -277,7 +277,7 @@ class DataProcessorConverter(BaseConverter):
         
         try:
             # Этап 1: Экспорт EDT -> XML
-            self.log_info("Этап 1/3: Экспорт EDT проекта в XML...")
+            self.start_stage("Этап 1/3: Экспорт EDT проекта в XML...")
             self.report_progress("Экспорт EDT -> XML", 10)
             
             result = self.edt_tool.export_to_xml(
@@ -292,18 +292,19 @@ class DataProcessorConverter(BaseConverter):
                     temp_dir=self.temp_dir
                 )
             
-            self.log_success("EDT проект успешно экспортирован в XML")
+            self.end_stage("EDT проект успешно экспортирован в XML")
             self.report_progress("Экспорт EDT -> XML завершен", 30)
             
             # Этап 2: Подготовка базовой ИБ
-            self.log_info("Этап 2/3: Подготовка базовой ИБ...")
+            self.start_stage("Этап 2/3: Подготовка базовой ИБ...")
             self.report_progress("Подготовка базовой ИБ", 40)
             
             ib_connection = self._prepare_base_ib()
+            self.end_stage("Базовая ИБ готова")
             self.report_progress("Базовая ИБ готова", 50)
             
             # Этап 3: Конвертация XML -> EPF/ERF
-            self.log_info("Этап 3/3: Конвертация обработок и отчетов...")
+            self.start_stage("Этап 3/3: Конвертация обработок и отчетов...")
             self.report_progress("Конвертация XML -> EPF/ERF", 60)
             
             # Находим все файлы обработок и отчетов
@@ -353,7 +354,7 @@ class DataProcessorConverter(BaseConverter):
                 progress = 60 + int((idx / total_files) * 35)
                 self.report_progress(f"Обработано {idx}/{total_files}", progress)
             
-            self.log_success(f"Все файлы успешно сконвертированы в: {output_dir}")
+            self.end_stage(f"Все файлы успешно сконвертированы в: {output_dir}")
             self.report_progress("Конвертация завершена", 100)
             
             return 0
@@ -378,14 +379,15 @@ class DataProcessorConverter(BaseConverter):
         
         try:
             # Этап 1: Подготовка базовой ИБ
-            self.log_info("Этап 1/2: Подготовка базовой ИБ...")
+            self.start_stage("Этап 1/2: Подготовка базовой ИБ...")
             self.report_progress("Подготовка базовой ИБ", 10)
             
             ib_connection = self._prepare_base_ib()
+            self.end_stage("Базовая ИБ готова")
             self.report_progress("Базовая ИБ готова", 30)
             
             # Этап 2: Конвертация XML -> EPF/ERF
-            self.log_info("Этап 2/2: Конвертация обработок и отчетов...")
+            self.start_stage("Этап 2/2: Конвертация обработок и отчетов...")
             self.report_progress("Конвертация XML -> EPF/ERF", 40)
             
             # Находим все файлы обработок и отчетов
@@ -436,7 +438,7 @@ class DataProcessorConverter(BaseConverter):
                 progress = 40 + int((idx / total_files) * 55)
                 self.report_progress(f"Обработано {idx}/{total_files}", progress)
             
-            self.log_success(f"Все файлы успешно сконвертированы в: {output_dir}")
+            self.end_stage(f"Все файлы успешно сконвертированы в: {output_dir}")
             self.report_progress("Конвертация завершена", 100)
             
             return 0

@@ -9,6 +9,7 @@ import sys
 import subprocess
 import threading
 import re
+import time
 from pathlib import Path
 from datetime import datetime
 
@@ -44,6 +45,41 @@ SCRIPT_DIR = Path(__file__).parent.parent.parent  # Корень проекта
 PROJECTS_DIR = SCRIPT_DIR / 'projects'
 CONVERT_SCRIPT = SCRIPT_DIR / 'src' / 'core' / 'convert.py'
 PARAMS_DESC_FILE = SCRIPT_DIR / 'src' / 'config' / 'params_descriptions.json'
+
+# ============================================================================
+# ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
+# ============================================================================
+
+def format_duration(seconds):
+    """
+    Форматирует длительность в читаемый вид
+    
+    Args:
+        seconds: количество секунд
+        
+    Returns:
+        str: отформатированная строка (например: "2 ч 15 мин 30 сек" или "45 сек")
+    """
+    if seconds < 60:
+        return f"{int(seconds)} сек"
+    
+    minutes = int(seconds // 60)
+    secs = int(seconds % 60)
+    
+    if minutes < 60:
+        if secs > 0:
+            return f"{minutes} мин {secs} сек"
+        return f"{minutes} мин"
+    
+    hours = int(minutes // 60)
+    mins = int(minutes % 60)
+    
+    if mins > 0 and secs > 0:
+        return f"{hours} ч {mins} мин {secs} сек"
+    elif mins > 0:
+        return f"{hours} ч {mins} мин"
+    else:
+        return f"{hours} ч"
 
 # ============================================================================
 # КЛАСС ДЛЯ СКАНИРОВАНИЯ ПРОЕКТОВ
@@ -145,6 +181,8 @@ class ConversionRunner:
     def __init__(self, window):
         self.window = window
         self.is_running = False
+        self.total_start_time = None
+        self.project_start_time = None
     
     def run_conversions(self, projects):
         """
@@ -156,6 +194,9 @@ class ConversionRunner:
         self.is_running = True
         total = len(projects)
         
+        # Запоминаем время начала всех конвертаций
+        self.total_start_time = time.time()
+        
         for idx, project in enumerate(projects, 1):
             if not self.is_running:
                 break
@@ -166,19 +207,30 @@ class ConversionRunner:
             self.window.write_event_value('-UPDATE_STATUS-', 
                                          (idx - 1, total, percent, status))
             
+            # Запоминаем время начала проекта
+            self.project_start_time = time.time()
+            
             # Запускаем конвертацию
             self._run_single_conversion(project)
             
+            # Вычисляем время выполнения проекта
+            project_duration = time.time() - self.project_start_time
+            duration_str = format_duration(project_duration)
+            
             # Обновляем прогресс
             percent = int(idx / total * 100)
-            status = f"Завершено: {project['name']}"
+            status = f"Завершено: {project['name']} (Время: {duration_str})"
             self.window.write_event_value('-UPDATE_STATUS-', 
                                          (idx, total, percent, status))
         
         # Завершение
         if self.is_running:
+            # Вычисляем общее время выполнения
+            total_duration = time.time() - self.total_start_time
+            total_duration_str = format_duration(total_duration)
+            
             self.window.write_event_value('-CONVERSION_DONE-', 
-                                         (total, total, 100))
+                                         (total, total, 100, total_duration_str))
         
         self.is_running = False
     
@@ -266,8 +318,12 @@ class ConversionRunner:
             process.wait()
             
             if process.returncode == 0:
+                # Вычисляем время выполнения проекта
+                project_duration = time.time() - self.project_start_time
+                duration_str = format_duration(project_duration)
+                
                 self.window.write_event_value('-LOG-', {
-                    'text': f"✓ Проект {project['name']} завершен успешно\n",
+                    'text': f"✓ Проект {project['name']} завершен успешно. Время выполнения: {duration_str}\n",
                     'color': COLORS['success']
                 })
             else:
@@ -763,9 +819,9 @@ class CyberpunkGUI:
             
             # Завершение конвертации
             elif event == '-CONVERSION_DONE-':
-                completed, total, percent = values[event]
+                completed, total, percent, total_duration_str = values[event]
                 self.window['-PROGRESS_TEXT-'].update(
-                    f'Готово! Выполнено: {completed} из {total} ({percent}%)')
+                    f'Готово! Выполнено: {completed} из {total} ({percent}%). Общее время: {total_duration_str}')
                 self.window['-PROGRESS_BAR-'].update(100)
                 # Убрано всплывающее окно
             
