@@ -38,9 +38,10 @@ class ConfigurationConverter(BaseConverter):
         self, 
         env_vars: Dict[str, str], 
         silent: bool = False,
-        progress_callback: Optional[callable] = None
+        progress_callback: Optional[callable] = None,
+        debug: bool = False
     ):
-        super().__init__(env_vars, silent, progress_callback)
+        super().__init__(env_vars, silent, progress_callback, debug)
         
         # Инициализация инструментов
         self.convert_tool = env_vars.get('V8_CONVERT_TOOL', 'designer')
@@ -188,7 +189,7 @@ class ConfigurationConverter(BaseConverter):
             load_config_log = self.temp_dir / 'load_config.log'
             
             # Создаем ИБ
-            self.log_info("Создание временной информационной базы...")
+            # Сообщение выводится внутри v8_tool.create_infobase()
             result = self.v8_tool.create_infobase(ib_connection_create, create_ib_log)
             
             if result != 0:
@@ -198,7 +199,7 @@ class ConfigurationConverter(BaseConverter):
                 )
             
             # Загружаем конфигурацию из XML
-            self.log_info("Загрузка конфигурации из XML файлов...")
+            # Сообщение выводится внутри v8_tool.load_config_from_files()
             result = self.v8_tool.load_config_from_files(
                 ib_connection=ib_connection_designer,
                 xml_path=temp_xml,

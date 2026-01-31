@@ -197,15 +197,34 @@ class ConversionRunner:
         if project['custom_dst_path']:
             cmd.extend(['--output', project['custom_dst_path']])
         
-        # Логируем команду
-        self.window.write_event_value('-LOG-', 
-            f"\n{'='*80}\n[INFO] Запуск: {project['name']}\n{'='*80}\n")
+        # Добавляем флаг отладки если включен
+        debug_mode = self.window and self.window['-DEBUG-'].get()
+        if debug_mode:
+            cmd.append('--debug')
+        
+        # Логируем команду с цветом и иконкой
+        self.window.write_event_value('-LOG-', {
+            'text': f"\n{'═'*80}\n▶ Запуск: {project['name']}\n{'═'*80}\n",
+            'color': COLORS['primary']
+        })
+        
+        # Выводим команду в режиме отладки
+        if debug_mode:
+            cmd_str = ' '.join(cmd)
+            self.window.write_event_value('-LOG-', {
+                'text': f"[ОТЛАДКА] Команда: {cmd_str}\n",
+                'color': COLORS['text_dim']
+            })
         
         try:
             # Запускаем процесс с улучшенной обработкой кодировки
             # Добавляем PYTHONUNBUFFERED=1 для отключения буферизации вывода Python
             env = os.environ.copy()
             env['PYTHONUNBUFFERED'] = '1'
+            
+            # Передаем режим отладки через переменную окружения
+            if debug_mode:
+                env['CONVERTER_DEBUG'] = '1'
             
             process = subprocess.Popen(
                 cmd,
@@ -236,27 +255,72 @@ class ConversionRunner:
                     decoded_line = line.decode('utf-8', errors='replace')
                 
                 # Удаляем ANSI escape-коды (цветовые коды)
-                import re
                 decoded_line = re.sub(r'\x1b\[[0-9;]*m', '', decoded_line)
                 
-                self.window.write_event_value('-LOG-', decoded_line)
+                # Отправляем строку с определением цвета
+                self.window.write_event_value('-LOG-', {
+                    'text': decoded_line,
+                    'color': self._get_log_color(decoded_line)
+                })
             
             process.wait()
             
             if process.returncode == 0:
-                self.window.write_event_value('-LOG-', 
-                    f"[SUCCESS] Проект {project['name']} завершен успешно\n")
+                self.window.write_event_value('-LOG-', {
+                    'text': f"✓ Проект {project['name']} завершен успешно\n",
+                    'color': COLORS['success']
+                })
             else:
-                self.window.write_event_value('-LOG-', 
-                    f"[ERROR] Проект {project['name']} завершен с ошибкой (код: {process.returncode})\n")
+                self.window.write_event_value('-LOG-', {
+                    'text': f"✗ Проект {project['name']} завершен с ошибкой (код: {process.returncode})\n",
+                    'color': COLORS['error']
+                })
         
         except Exception as e:
-            self.window.write_event_value('-LOG-', 
-                f"[ERROR] Исключение при выполнении {project['name']}: {e}\n")
+            self.window.write_event_value('-LOG-', {
+                'text': f"✗ Исключение при выполнении {project['name']}: {e}\n",
+                'color': COLORS['error']
+            })
     
     def stop(self):
         """Останавливает выполнение конвертации"""
         self.is_running = False
+    
+    def _get_log_color(self, line):
+        """
+        Определяет цвет для строки лога на основе содержимого
+        
+        Args:
+            line: строка лога
+            
+        Returns:
+            str: цвет из COLORS
+        """
+        line_lower = line.lower()
+        
+        # Отладка
+        if '[ОТЛАДКА]' in line or '[отладка]' in line_lower:
+            return COLORS['text_dim']
+        
+        # Успех
+        if any(word in line_lower for word in ['успех', 'завершен', 'completed', 'done', 'ok']):
+            if 'ошибк' not in line_lower and 'error' not in line_lower:
+                return COLORS['success']
+        
+        # Ошибка
+        if any(word in line_lower for word in ['ошибка', 'failed', 'fail', 'exception', 'исключение']):
+            return COLORS['error']
+        
+        # Предупреждение
+        if any(word in line_lower for word in ['внимание', 'предупреждение', 'warn']):
+            return COLORS['warning']
+        
+        # Информация (специальные маркеры)
+        if any(marker in line for marker in ['[ИНФО]', 'ℹ', '▶', '●']):
+            return COLORS['primary']
+        
+        # Обычный текст
+        return COLORS['text']
 
 # ============================================================================
 # ГЛАВНЫЙ КЛАСС GUI
@@ -271,6 +335,7 @@ class CyberpunkGUI:
         self.runner = None
         self.conversion_thread = None
         self.params_descriptions = self._load_params_descriptions()
+        self.debug_mode = False  # Режим отладки
         
         # Настраиваем тему
         self._setup_theme()
@@ -452,12 +517,20 @@ class CyberpunkGUI:
                            key='-PROGRESS_BAR-', 
                            bar_color=(COLORS['primary'], COLORS['bg_secondary']))],
             
-            # Кнопка ВЫПОЛНИТЬ (всегда видима)
-            [sg.Button('ВЫПОЛНИТЬ (F5)', key='-EXECUTE-', 
-                      size=(20, 2),
-                      button_color=(COLORS['bg'], COLORS['primary']),
-                      font=('Arial', 14, 'bold'),
-                      border_width=0)]
+            # Кнопка ВЫПОЛНИТЬ и чекбокс Отладка
+            [
+                sg.Button('ВЫПОЛНИТЬ (F5)', key='-EXECUTE-', 
+                         size=(20, 2),
+                         button_color=(COLORS['bg'], COLORS['primary']),
+                         font=('Arial', 14, 'bold'),
+                         border_width=0),
+                sg.Checkbox('Отладка', key='-DEBUG-', 
+                           default=False,
+                           enable_events=True,
+                           text_color=COLORS['text'],
+                           background_color=COLORS['bg'],
+                           font=('Consolas', 10))
+            ]
         ]
         
         return layout
@@ -595,6 +668,14 @@ class CyberpunkGUI:
             elif event == 'F5:116':  # F5 key code
                 self._execute_conversion()
             
+            # Чекбокс отладки
+            elif event == '-DEBUG-':
+                self.debug_mode = values['-DEBUG-']
+                status = "включен" if self.debug_mode else "выключен"
+                self.log_output.print(f'ℹ Режим отладки {status}\n', 
+                                     text_color=COLORS['primary'], 
+                                     end='')
+            
             # Выбор строки в таблице
             elif event == '-TABLE-':
                 if values['-TABLE-']:
@@ -633,7 +714,9 @@ class CyberpunkGUI:
                 self.scan_projects()
                 self.selected_row = None
                 self.update_table()
-                self.log_output.update('[INFO] Проекты обновлены\n', append=True)
+                self.log_output.print('✓ Проекты обновлены\n', 
+                                     text_color=COLORS['success'], 
+                                     end='')
             
             # Выполнить
             elif event == '-EXECUTE-':
@@ -675,7 +758,8 @@ class CyberpunkGUI:
                 self.window['-PROGRESS_TEXT-'].update(
                     f'Выполнено: {completed} из {total} проектов ({percent}%)')
                 self.window['-PROGRESS_BAR-'].update(percent)
-                self.log_output.update(f'[INFO] {status}\n', append=True)
+                # Цветной вывод статуса
+                self.log_output.print(f'ℹ {status}\n', text_color=COLORS['primary'], end='')
             
             # Завершение конвертации
             elif event == '-CONVERSION_DONE-':
@@ -685,9 +769,17 @@ class CyberpunkGUI:
                 self.window['-PROGRESS_BAR-'].update(100)
                 # Убрано всплывающее окно
             
-            # Лог
+            # Лог с цветом
             elif event == '-LOG-':
-                self.log_output.update(values[event], append=True)
+                log_data = values[event]
+                if isinstance(log_data, dict):
+                    # Новый формат с цветом
+                    self.log_output.print(log_data['text'], 
+                                         text_color=log_data['color'], 
+                                         end='')
+                else:
+                    # Старый формат (обратная совместимость)
+                    self.log_output.update(log_data, append=True)
         
         # Останавливаем конвертацию если запущена
         if self.runner:

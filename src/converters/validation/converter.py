@@ -35,9 +35,10 @@ class ValidationConverter(BaseConverter):
         self, 
         env_vars: Dict[str, str], 
         silent: bool = False,
-        progress_callback: Optional[callable] = None
+        progress_callback: Optional[callable] = None,
+        debug: bool = False
     ):
-        super().__init__(env_vars, silent, progress_callback)
+        super().__init__(env_vars, silent, progress_callback, debug)
         
         # Инициализация EDT инструмента
         self.edt_tool = EdtToolWrapper(env_vars, self.logger)

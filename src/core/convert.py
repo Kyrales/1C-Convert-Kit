@@ -34,22 +34,22 @@ class Colors:
 
 def print_info(message):
     """Выводит информационное сообщение зеленым цветом"""
-    print(f"{Colors.GREEN}[INFO]{Colors.RESET} {message}")
+    print(f"{Colors.GREEN}[ИНФО]{Colors.RESET} {message}")
 
 
 def print_error(message):
     """Выводит сообщение об ошибке красным цветом"""
-    print(f"{Colors.RED}[ERROR]{Colors.RESET} {message}")
+    print(f"{Colors.RED}[ОШИБКА]{Colors.RESET} {message}")
 
 
 def print_warning(message):
     """Выводит предупреждение желтым цветом"""
-    print(f"{Colors.YELLOW}[WARNING]{Colors.RESET} {message}")
+    print(f"{Colors.YELLOW}[ВНИМАНИЕ]{Colors.RESET} {message}")
 
 
 def print_success(message):
     """Выводит сообщение об успехе зеленым цветом"""
-    print(f"{Colors.GREEN}[SUCCESS]{Colors.RESET} {message}")
+    print(f"{Colors.GREEN}[УСПЕХ]{Colors.RESET} {message}")
 
 
 def load_env_file(env_path, silent=False):
@@ -157,13 +157,14 @@ def merge_env_files(env_files, silent=False):
     return merged_vars
 
 
-def run_conversion(env_files, output_path=None):
+def run_conversion(env_files, output_path=None, debug=False):
     """
     Запускает конвертацию используя Python конвертеры
     
     Args:
         env_files: список путей к .env файлам
         output_path: путь для сохранения результата (опционально)
+        debug: режим отладки (опционально)
         
     Returns:
         int: код возврата (0 - успех, 1 - ошибка)
@@ -229,7 +230,7 @@ def run_conversion(env_files, output_path=None):
     
     # Создаем и запускаем конвертер
     try:
-        converter = converter_class(env_vars, silent=False)
+        converter = converter_class(env_vars, silent=False, debug=debug)
         converter.validate()
         exit_code = converter.convert()
         
@@ -292,6 +293,12 @@ def main():
         help='Путь для сохранения результата (переопределяет V8_DST_PATH из .env)'
     )
     
+    parser.add_argument(
+        '-d', '--debug',
+        action='store_true',
+        help='Режим отладки (выводит выполняемые команды)'
+    )
+    
     args = parser.parse_args()
     
     # Собираем все .env файлы
@@ -346,7 +353,7 @@ def main():
         sys.exit(1)
     
     # Запускаем конвертацию
-    exit_code = run_conversion(all_env_files, args.output)
+    exit_code = run_conversion(all_env_files, args.output, args.debug)
     sys.exit(exit_code)
 
 

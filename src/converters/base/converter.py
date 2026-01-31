@@ -46,10 +46,12 @@ class Logger:
     
     Args:
         silent: Если True, подавляет вывод сообщений
+        debug: Если True, выводит отладочную информацию
     """
     
-    def __init__(self, silent: bool = False):
+    def __init__(self, silent: bool = False, debug: bool = False):
         self.silent = silent
+        self.debug = debug
         Colors.enable_windows_colors()
     
     def info(self, message: str):
@@ -76,6 +78,11 @@ class Logger:
         """Выводит сообщение об успехе."""
         if not self.silent:
             print(f"{Colors.GREEN}[УСПЕХ]{Colors.RESET} {message}")
+    
+    def debug_msg(self, message: str):
+        """Выводит отладочное сообщение."""
+        if not self.silent and self.debug:
+            print(f"{Colors.CYAN}[ОТЛАДКА]{Colors.RESET} {message}")
 
 
 class SourceType(Enum):
@@ -338,21 +345,24 @@ class BaseConverter(ABC):
         env_vars: Словарь переменных окружения из .env файлов
         silent: Если True, подавляет вывод в консоль
         progress_callback: Опциональный callback для отчета о прогрессе
+        debug: Если True, выводит отладочную информацию
     """
     
     def __init__(
         self, 
         env_vars: Dict[str, str], 
         silent: bool = False,
-        progress_callback: Optional[Callable[[str, int], None]] = None
+        progress_callback: Optional[Callable[[str, int], None]] = None,
+        debug: bool = False
     ):
         self.env_vars = env_vars
         self.silent = silent
         self.progress_callback = progress_callback
+        self.debug = debug
         self.src_path = env_vars.get('V8_SRC_PATH', '')
         self.dst_path = env_vars.get('V8_DST_PATH', '')
         self.temp_dir: Optional[Path] = None
-        self.logger = Logger(silent)
+        self.logger = Logger(silent, debug)
         self.cleanup_on_success = True
         self.cleanup_on_error = False
         self.temp_manager: Optional[TempFileManager] = None

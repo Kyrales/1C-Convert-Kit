@@ -38,9 +38,10 @@ class ExtensionConverter(BaseConverter):
         self, 
         env_vars: Dict[str, str], 
         silent: bool = False,
-        progress_callback: Optional[callable] = None
+        progress_callback: Optional[callable] = None,
+        debug: bool = False
     ):
-        super().__init__(env_vars, silent, progress_callback)
+        super().__init__(env_vars, silent, progress_callback, debug)
         
         # Параметры расширения
         self.ext_name = env_vars.get('V8_EXT_NAME', '')
@@ -202,7 +203,7 @@ class ExtensionConverter(BaseConverter):
             log_file = self.temp_dir / 'create_base_ib.log'
             
             # Создаем ИБ
-            self.log_info("Создание временной ИБ...")
+            # Сообщение выводится внутри v8_tool.create_infobase()
             result = self.v8_tool.create_infobase(ib_connection_create, log_file)
             
             if result != 0:

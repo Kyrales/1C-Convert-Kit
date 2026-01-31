@@ -26,6 +26,18 @@ class ToolWrapper(ABC):
         self.logger = logger
         self.tool_path: Optional[Path] = None
     
+    def _log_command(self, cmd: List[str]):
+        """
+        Выводит команду в лог если включен режим отладки.
+        
+        Args:
+            cmd: Список аргументов команды
+        """
+        if self.logger.debug:
+            # Формируем строку команды
+            cmd_str = ' '.join(f'"{arg}"' if ' ' in str(arg) else str(arg) for arg in cmd)
+            self.logger.debug_msg(f"Команда: {cmd_str}")
+    
     @abstractmethod
     def find_tool(self) -> Optional[Path]:
         """
@@ -135,6 +147,9 @@ class V8ToolWrapper(ToolWrapper):
             f'/Out{log_file}'
         ]
         
+        # Выводим команду в режиме отладки
+        self._log_command(cmd)
+        
         try:
             result = subprocess.run(
                 cmd,
@@ -216,6 +231,9 @@ class V8ToolWrapper(ToolWrapper):
         if ib_pwd:
             cmd.extend([f'/P{ib_pwd}'])
         
+        # Выводим команду в режиме отладки
+        self._log_command(cmd)
+        
         try:
             result = subprocess.run(
                 cmd,
@@ -296,6 +314,13 @@ class V8ToolWrapper(ToolWrapper):
             cmd.extend([f'/N{ib_user}'])
         if ib_pwd:
             cmd.extend([f'/P{ib_pwd}'])
+        
+        # Выводим команду в режиме отладки
+
+        
+        self._log_command(cmd)
+
+
         
         try:
             result = subprocess.run(
@@ -380,6 +405,13 @@ class V8ToolWrapper(ToolWrapper):
             cmd.extend([f'/N{ib_user}'])
         if ib_pwd:
             cmd.extend([f'/P{ib_pwd}'])
+        
+        # Выводим команду в режиме отладки
+
+        
+        self._log_command(cmd)
+
+
         
         try:
             result = subprocess.run(
@@ -486,6 +518,13 @@ class IbcmdToolWrapper(ToolWrapper):
             f'--import={xml_path}'
         ]
         
+        # Выводим команду в режиме отладки
+
+        
+        self._log_command(cmd)
+
+
+        
         try:
             result = subprocess.run(
                 cmd,
@@ -581,6 +620,13 @@ class IbcmdToolWrapper(ToolWrapper):
         if extension_name:
             cmd.extend(['--extension', extension_name])
         
+        # Выводим команду в режиме отладки
+
+        
+        self._log_command(cmd)
+
+
+        
         try:
             result = subprocess.run(
                 cmd,
@@ -653,6 +699,11 @@ class EdtToolWrapper(ToolWrapper):
                 return tool_path
         
         # Ищем в PATH
+        # Выводим команду в режиме отладки
+
+        self._log_command(cmd)
+
+
         try:
             result = subprocess.run(
                 ['where', 'ring.bat'],
@@ -757,6 +808,13 @@ class EdtToolWrapper(ToolWrapper):
             ]
         else:
             raise ToolNotFoundError("EDT инструмент не определен")
+        
+        # Выводим команду в режиме отладки
+
+        
+        self._log_command(cmd)
+
+
         
         try:
             result = subprocess.run(
