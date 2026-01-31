@@ -1,0 +1,447 @@
+"""
+Конвертер для обработок и отчетов 1С.
+
+Поддерживает конвертацию обработок и отчетов между форматами:
+- EDT -> EPF/ERF
+- XML -> EPF/ERF
+"""
+
+from pathlib import Path
+from typing import Dict, Optional, List
+
+from ..base.converter import (
+    BaseConverter,
+    SourceType,
+    ValidationError,
+    ToolNotFoundError,
+    ToolExecutionError
+)
+from ..base.tools import V8ToolWrapper, EdtToolWrapper
+
+
+class DataProcessorConverter(BaseConverter):
+    """
+    Конвертер для обработок и отчетов 1С.
+    
+    Поддерживает конвертацию из EDT и XML в форматы EPF (обработки) и ERF (отчеты).
+    Может обрабатывать множественные файлы обработок/отчетов.
+    
+    Args:
+        env_vars: Словарь переменных окружения из .env файлов
+        silent: Если True, подавляет вывод в консоль
+        progress_callback: Опциональный callback для отчета о прогрессе
+    """
+    
+    def __init__(
+        self, 
+        env_vars: Dict[str, str], 
+        silent: bool = False,
+        progress_callback: Optional[callable] = None
+    ):
+        super().__init__(env_vars, silent, progress_callback)
+        
+        # Параметры базовой ИБ
+        self.base_ib = env_vars.get('V8_BASE_IB', '')
+        self.base_config = env_vars.get('V8_BASE_CONFIG', '')
+        
+        # Инициализация инструментов
+        self.v8_tool = V8ToolWrapper(env_vars, self.logger)
+        self.edt_tool = EdtToolWrapper(env_vars, self.logger)
+    
+    def get_output_extension(self) -> str:
+        """
+        Возвращает расширение выходного файла.
+        
+        Returns:
+            str: '.epf' (по умолчанию, может быть .erf для отчетов)
+        """
+        return '.epf'
+    
+    def _validate_specific(self) -> None:
+        """
+        Специфичная валидация для конвертера обработок/отчетов.
+        
+        Проверяет:
+        - Что dst_path указывает на директорию, а не на файл
+        
+        Raises:
+            ValidationError: Если параметры некорректны
+        """
+        # Проверка что dst_path - это директория, а не файл
+        dst_path_obj = Path(self.dst_path)
+        if dst_path_obj.suffix in ['.epf', '.erf']:
+            raise ValidationError(
+                f"V8_DST_PATH должен указывать на директорию для выходных файлов, "
+                f"а не на конкретный файл. Получено: {self.dst_path}"
+            )
+    
+    def _do_convert(self) -> int:
+        """
+        Выполняет конвертацию обработок/отчетов.
+        
+        Определяет тип источника и вызывает соответствующий метод конвертации.
+        
+        Returns:
+            int: Код возврата (0 - успех, 1 - ошибка)
+        """
+        # Определяем тип источника
+        source_type = self.detect_source_type()
+        self.log_info(f"Тип источника: {source_type.value}")
+        
+        # Маршрутизация по типу источника
+        if source_type == SourceType.EDT:
+            return self._convert_from_edt()
+        elif source_type == SourceType.XML:
+            return self._convert_from_xml()
+        else:
+            raise ValidationError(
+                f"Неподдерживаемый тип источника: {source_type.value}. "
+                f"Поддерживаются: EDT, XML"
+            )
+    
+    def _prepare_base_ib(self) -> str:
+        """
+        Подготавливает базовую ИБ для загрузки обработок/отчетов.
+        
+        Логика:
+        1. Если указан V8_BASE_IB - использовать существующую ИБ
+        2. Если указан V8_BASE_CONFIG - создать ИБ и загрузить конфигурацию
+        3. Иначе - создать пустую ИБ
+        
+        Returns:
+            str: Строка подключения к ИБ
+            
+        Raises:
+            ToolNotFoundError: Если инструмент не найден
+            ToolExecutionError: Если ошибка при создании/загрузке ИБ
+        """
+        self.log_info("Подготовка базовой информационной базы...")
+        
+        # Случай 1: Используем существующую ИБ
+        if self.base_ib:
+            self.log_info(f"Использование существующей ИБ: {self.base_ib}")
+            
+            # Формируем строку подключения
+            if self.base_ib.startswith('/S') or self.base_ib.startswith('/F'):
+                # Убираем префикс /F или /S, оставляем только путь
+                ib_connection = self.base_ib[2:] if self.base_ib.startswith('/F') else self.base_ib
+            else:
+                ib_connection = self.base_ib
+            
+            # Проверяем существование ИБ
+            if not self.base_ib.startswith('/S'):
+                base_ib_path = Path(self.base_ib.replace('/F', ''))
+                if not base_ib_path.exists():
+                    raise ValidationError(f"Базовая ИБ не найдена: {self.base_ib}")
+            
+            return ib_connection
+        
+        # Случай 2: Создаем ИБ и загружаем конфигурацию
+        if self.base_config:
+            self.log_info(f"Создание ИБ с конфигурацией: {self.base_config}")
+            
+            # Проверяем доступность инструмента
+            if not self.v8_tool.is_available():
+                raise ToolNotFoundError(
+                    "1cv8.exe не найден. "
+                    "Установите платформу 1С или укажите путь в переменной V8_TOOL"
+                )
+            
+            # Создаем временную ИБ
+            temp_db = self.temp_dir / 'base_ib'
+            temp_db.mkdir(exist_ok=True)
+            
+            # Формируем строку подключения для CREATEINFOBASE
+            ib_path_str = str(temp_db).replace('\\', '/')
+            ib_connection_string = f'File={ib_path_str};'
+            log_file = self.temp_dir / 'create_base_ib.log'
+            
+            # Создаем ИБ
+            self.log_info("Создание временной ИБ...")
+            result = self.v8_tool.create_infobase(ib_connection_string, log_file)
+            
+            if result != 0:
+                raise ToolExecutionError(
+                    "Ошибка при создании базовой ИБ",
+                    temp_dir=self.temp_dir
+                )
+            
+            # Загружаем конфигурацию
+            self.log_info("Загрузка базовой конфигурации...")
+            load_log_file = self.temp_dir / 'load_base_config.log'
+            
+            result = self.v8_tool.load_config_from_files(
+                ib_connection=str(temp_db),
+                xml_path=Path(self.base_config),
+                log_file=load_log_file
+            )
+            
+            if result != 0:
+                raise ToolExecutionError(
+                    "Ошибка при загрузке базовой конфигурации",
+                    temp_dir=self.temp_dir
+                )
+            
+            self.log_success("Базовая ИБ создана и конфигурация загружена")
+            return str(temp_db)
+        
+        # Случай 3: Создаем пустую ИБ
+        self.log_info("Создание пустой ИБ...")
+        
+        # Проверяем доступность инструмента
+        if not self.v8_tool.is_available():
+            raise ToolNotFoundError(
+                "1cv8.exe не найден. "
+                "Установите платформу 1С или укажите путь в переменной V8_TOOL"
+            )
+        
+        # Создаем временную ИБ
+        temp_db = self.temp_dir / 'base_ib'
+        temp_db.mkdir(exist_ok=True)
+        
+        # Формируем строку подключения для CREATEINFOBASE
+        ib_path_str = str(temp_db).replace('\\', '/')
+        ib_connection_string = f'File={ib_path_str};'
+        log_file = self.temp_dir / 'create_empty_ib.log'
+        
+        result = self.v8_tool.create_infobase(ib_connection_string, log_file)
+        
+        if result != 0:
+            raise ToolExecutionError(
+                "Ошибка при создании пустой ИБ",
+                temp_dir=self.temp_dir
+            )
+        
+        self.log_success("Пустая ИБ создана")
+        # Возвращаем путь к ИБ (без префикса File=)
+        return str(temp_db)
+    
+    def _find_processor_files(self, xml_path: Path) -> List[tuple]:
+        """
+        Находит все файлы обработок и отчетов в XML директории.
+        
+        Args:
+            xml_path: Путь к директории с XML файлами
+            
+        Returns:
+            list: Список кортежей (xml_file_path, output_extension, output_name)
+        """
+        files = []
+        
+        # Ищем обработки в ExternalDataProcessors
+        processors_dir = xml_path / 'ExternalDataProcessors'
+        if processors_dir.exists():
+            for xml_file in processors_dir.glob('*.xml'):
+                # Имя файла без расширения
+                name = xml_file.stem
+                files.append((xml_file, '.epf', name))
+                self.log_info(f"Найдена обработка: {name}")
+        
+        # Ищем отчеты в ExternalReports
+        reports_dir = xml_path / 'ExternalReports'
+        if reports_dir.exists():
+            for xml_file in reports_dir.glob('*.xml'):
+                # Имя файла без расширения
+                name = xml_file.stem
+                files.append((xml_file, '.erf', name))
+                self.log_info(f"Найден отчет: {name}")
+        
+        return files
+    
+    def _convert_from_edt(self) -> int:
+        """
+        Конвертирует обработки/отчеты из EDT проекта в EPF/ERF файлы.
+        
+        Последовательность: EDT -> XML -> EPF/ERF
+        
+        Returns:
+            int: Код возврата (0 - успех, 1 - ошибка)
+        """
+        self.log_info("Конвертация EDT -> EPF/ERF")
+        self.report_progress("Конвертация EDT -> EPF/ERF", 0)
+        
+        # Проверяем доступность EDT инструмента
+        if not self.edt_tool.is_available():
+            raise ToolNotFoundError(
+                "EDT инструмент (ring/edtcli) не найден. "
+                "Установите EDT или укажите путь в переменной RING_TOOL/EDT_TOOL"
+            )
+        
+        # Создаем временные директории
+        temp_xml = self.temp_dir / 'tmp_xml'
+        temp_xml.mkdir(exist_ok=True)
+        
+        edt_workspace = self.temp_dir / 'edt_ws'
+        edt_workspace.mkdir(exist_ok=True)
+        
+        try:
+            # Этап 1: Экспорт EDT -> XML
+            self.log_info("Этап 1/3: Экспорт EDT проекта в XML...")
+            self.report_progress("Экспорт EDT -> XML", 10)
+            
+            result = self.edt_tool.export_to_xml(
+                edt_project=Path(self.src_path),
+                xml_output=temp_xml,
+                workspace=edt_workspace
+            )
+            
+            if result != 0:
+                raise ToolExecutionError(
+                    "Ошибка при экспорте EDT проекта в XML",
+                    temp_dir=self.temp_dir
+                )
+            
+            self.log_success("EDT проект успешно экспортирован в XML")
+            self.report_progress("Экспорт EDT -> XML завершен", 30)
+            
+            # Этап 2: Подготовка базовой ИБ
+            self.log_info("Этап 2/3: Подготовка базовой ИБ...")
+            self.report_progress("Подготовка базовой ИБ", 40)
+            
+            ib_connection = self._prepare_base_ib()
+            self.report_progress("Базовая ИБ готова", 50)
+            
+            # Этап 3: Конвертация XML -> EPF/ERF
+            self.log_info("Этап 3/3: Конвертация обработок и отчетов...")
+            self.report_progress("Конвертация XML -> EPF/ERF", 60)
+            
+            # Находим все файлы обработок и отчетов
+            processor_files = self._find_processor_files(temp_xml)
+            
+            if not processor_files:
+                self.log_warning("Не найдено обработок или отчетов для конвертации")
+                return 0
+            
+            self.log_info(f"Найдено файлов для конвертации: {len(processor_files)}")
+            
+            # Создаем выходную директорию
+            output_dir = Path(self.dst_path)
+            output_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Конвертируем каждый файл
+            total_files = len(processor_files)
+            for idx, (xml_file, extension, name) in enumerate(processor_files, 1):
+                self.log_info(f"Конвертация {idx}/{total_files}: {name}{extension}")
+                
+                log_file = self.temp_dir / f'load_{name}.log'
+                
+                result = self.v8_tool.load_external_processor(
+                    ib_connection=ib_connection,
+                    xml_file=xml_file,
+                    output_dir=output_dir,
+                    log_file=log_file
+                )
+                
+                if result != 0:
+                    raise ToolExecutionError(
+                        f"Ошибка при конвертации {name}{extension}",
+                        temp_dir=self.temp_dir
+                    )
+                
+                # Проверяем что файл создан
+                output_file = output_dir / f"{name}{extension}"
+                if not output_file.exists():
+                    raise ToolExecutionError(
+                        f"Выходной файл не создан: {output_file}",
+                        temp_dir=self.temp_dir
+                    )
+                
+                self.log_success(f"Создан файл: {output_file}")
+                
+                # Обновляем прогресс
+                progress = 60 + int((idx / total_files) * 35)
+                self.report_progress(f"Обработано {idx}/{total_files}", progress)
+            
+            self.log_success(f"Все файлы успешно сконвертированы в: {output_dir}")
+            self.report_progress("Конвертация завершена", 100)
+            
+            return 0
+            
+        except Exception as e:
+            self.log_error(f"Ошибка при конвертации EDT -> EPF/ERF: {e}")
+            if self.temp_manager:
+                self.temp_manager.preserve_on_error()
+            raise
+    
+    def _convert_from_xml(self) -> int:
+        """
+        Конвертирует обработки/отчеты из XML файлов в EPF/ERF файлы.
+        
+        Последовательность: XML -> EPF/ERF
+        
+        Returns:
+            int: Код возврата (0 - успех, 1 - ошибка)
+        """
+        self.log_info("Конвертация XML -> EPF/ERF")
+        self.report_progress("Конвертация XML -> EPF/ERF", 0)
+        
+        try:
+            # Этап 1: Подготовка базовой ИБ
+            self.log_info("Этап 1/2: Подготовка базовой ИБ...")
+            self.report_progress("Подготовка базовой ИБ", 10)
+            
+            ib_connection = self._prepare_base_ib()
+            self.report_progress("Базовая ИБ готова", 30)
+            
+            # Этап 2: Конвертация XML -> EPF/ERF
+            self.log_info("Этап 2/2: Конвертация обработок и отчетов...")
+            self.report_progress("Конвертация XML -> EPF/ERF", 40)
+            
+            # Находим все файлы обработок и отчетов
+            xml_path = Path(self.src_path)
+            processor_files = self._find_processor_files(xml_path)
+            
+            if not processor_files:
+                self.log_warning("Не найдено обработок или отчетов для конвертации")
+                return 0
+            
+            self.log_info(f"Найдено файлов для конвертации: {len(processor_files)}")
+            
+            # Создаем выходную директорию
+            output_dir = Path(self.dst_path)
+            output_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Конвертируем каждый файл
+            total_files = len(processor_files)
+            for idx, (xml_file, extension, name) in enumerate(processor_files, 1):
+                self.log_info(f"Конвертация {idx}/{total_files}: {name}{extension}")
+                
+                log_file = self.temp_dir / f'load_{name}.log'
+                
+                result = self.v8_tool.load_external_processor(
+                    ib_connection=ib_connection,
+                    xml_file=xml_file,
+                    output_dir=output_dir,
+                    log_file=log_file
+                )
+                
+                if result != 0:
+                    raise ToolExecutionError(
+                        f"Ошибка при конвертации {name}{extension}",
+                        temp_dir=self.temp_dir
+                    )
+                
+                # Проверяем что файл создан
+                output_file = output_dir / f"{name}{extension}"
+                if not output_file.exists():
+                    raise ToolExecutionError(
+                        f"Выходной файл не создан: {output_file}",
+                        temp_dir=self.temp_dir
+                    )
+                
+                self.log_success(f"Создан файл: {output_file}")
+                
+                # Обновляем прогресс
+                progress = 40 + int((idx / total_files) * 55)
+                self.report_progress(f"Обработано {idx}/{total_files}", progress)
+            
+            self.log_success(f"Все файлы успешно сконвертированы в: {output_dir}")
+            self.report_progress("Конвертация завершена", 100)
+            
+            return 0
+            
+        except Exception as e:
+            self.log_error(f"Ошибка при конвертации XML -> EPF/ERF: {e}")
+            if self.temp_manager:
+                self.temp_manager.preserve_on_error()
+            raise

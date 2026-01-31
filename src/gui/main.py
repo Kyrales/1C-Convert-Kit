@@ -24,7 +24,7 @@ from ..core.convert import load_env_file
 # КОНСТАНТЫ
 # ============================================================================
 
-VERSION = "1.0.3"
+VERSION = "1.1.2"
 
 # Цветовая схема Cyberpunk
 COLORS = {
@@ -203,11 +203,17 @@ class ConversionRunner:
         
         try:
             # Запускаем процесс с улучшенной обработкой кодировки
+            # Добавляем PYTHONUNBUFFERED=1 для отключения буферизации вывода Python
+            env = os.environ.copy()
+            env['PYTHONUNBUFFERED'] = '1'
+            
             process = subprocess.Popen(
                 cmd,
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
-                cwd=str(SCRIPT_DIR)
+                cwd=str(SCRIPT_DIR),
+                env=env,
+                bufsize=1  # Построчная буферизация
             )
             
             # Читаем вывод построчно с обработкой разных кодировок
@@ -274,7 +280,7 @@ class CyberpunkGUI:
         
         # Создаем окно
         self.window = sg.Window(
-            f'1C Files Converter - Cyberpunk Edition | Версия {VERSION}',
+            f'1C-Convert-Kit - Cyberpunk Edition | Версия {VERSION}',
             self.create_layout(),
             size=(1600, 750),  # Еще больше увеличен размер окна
             finalize=True,
@@ -462,7 +468,7 @@ class CyberpunkGUI:
         for idx, project in enumerate(self.projects):
             check = '✓' if project['selected'] else ''
             # Добавляем стрелку для текущей выбранной строки
-            marker = '→' if idx == self.selected_row else ''
+            marker = '>' if idx == self.selected_row else ''
             name = f"{marker} {project['name']}" if marker else project['name']
             dst = project['custom_dst_path'] or project['dst_path']
             table_data.append([check, name, project['script'], dst])
@@ -478,7 +484,7 @@ class CyberpunkGUI:
         
         Args:
             param_name: имя параметра (без источника в скобках)
-            script_name: имя скрипта (например: conf2cf.cmd)
+            script_name: имя скрипта (например: conf2cf или conf2cf.cmd)
             
         Returns:
             str: описание параметра или пустая строка
@@ -486,10 +492,13 @@ class CyberpunkGUI:
         if not self.params_descriptions:
             return ''
         
+        # Нормализуем имя скрипта - добавляем .cmd если нет
+        script_key = script_name if script_name.endswith('.cmd') else f"{script_name}.cmd"
+        
         # Сначала ищем в специфичных для скрипта
-        if script_name in self.params_descriptions:
-            if param_name in self.params_descriptions[script_name]:
-                return self.params_descriptions[script_name][param_name]
+        if script_key in self.params_descriptions:
+            if param_name in self.params_descriptions[script_key]:
+                return self.params_descriptions[script_key][param_name]
         
         # Затем ищем в общих
         if 'common' in self.params_descriptions:
