@@ -8,7 +8,7 @@
 """
 
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Callable
 
 from ..base.converter import (
     BaseConverter,
@@ -34,11 +34,19 @@ class ExtensionConverter(BaseConverter):
         progress_callback: Опциональный callback для отчета о прогрессе
     """
     
+    ext_name: str
+    base_ib: str
+    base_config: str
+    convert_tool: str
+    v8_tool: V8ToolWrapper
+    ibcmd_tool: IbcmdToolWrapper
+    edt_tool: EdtToolWrapper
+    
     def __init__(
         self, 
         env_vars: Dict[str, str], 
         silent: bool = False,
-        progress_callback: Optional[callable] = None,
+        progress_callback: Optional[Callable[[str, int], None]] = None,
         debug: bool = False
     ):
         super().__init__(env_vars, silent, progress_callback, debug)
@@ -84,13 +92,13 @@ class ExtensionConverter(BaseConverter):
             # Проверка обязательного параметра V8_EXT_NAME
             if not self.ext_name:
                 raise ValidationError(
-                    "Не указан параметр V8_EXT_NAME (имя расширения). "
+                    "Не указан параметр V8_EXT_NAME (имя расширения). " +
                     "Этот параметр обязателен для конвертации расширений в CFE."
                 )
             
             if dst_path_obj.suffix.lower() != '.cfe':
                 raise ValidationError(
-                    f"V8_DST_PATH должен указывать на файл .cfe для {script_name}, "
+                    f"V8_DST_PATH должен указывать на файл .cfe для {script_name}, " +
                     f"получено: {self.dst_path}"
                 )
         # Для конвертации в XML или EDT
@@ -98,20 +106,20 @@ class ExtensionConverter(BaseConverter):
             # Для XML и EDT нужна директория, а не файл
             if dst_path_obj.suffix:
                 raise ValidationError(
-                    f"V8_DST_PATH должен указывать на директорию для {script_name}, "
+                    f"V8_DST_PATH должен указывать на директорию для {script_name}, " +
                     f"а не на файл. Получено: {self.dst_path}"
                 )
         else:
             # Для неизвестных типов конвертации используем старую логику
             if not self.ext_name:
                 raise ValidationError(
-                    "Не указан параметр V8_EXT_NAME (имя расширения). "
+                    "Не указан параметр V8_EXT_NAME (имя расширения). " +
                     "Этот параметр обязателен для конвертации расширений."
                 )
             
             if dst_path_obj.suffix.lower() != '.cfe':
                 raise ValidationError(
-                    f"V8_DST_PATH должен указывать на файл .cfe, "
+                    f"V8_DST_PATH должен указывать на файл .cfe, " +
                     f"получено: {self.dst_path}"
                 )
     
@@ -140,7 +148,7 @@ class ExtensionConverter(BaseConverter):
             return self._convert_from_cfe()
         else:
             raise ValidationError(
-                f"Неподдерживаемый тип источника: {source_type.value}. "
+                f"Неподдерживаемый тип источника: {source_type.value}. " +
                 f"Поддерживаются: EDT, XML, InfoBase, CFE"
             )
     
@@ -161,6 +169,9 @@ class ExtensionConverter(BaseConverter):
             ToolExecutionError: Если ошибка при создании/загрузке ИБ
         """
         self.log_info("Подготовка базовой информационной базы для расширения...")
+        
+        # Проверяем что temp_dir создана
+        assert self.temp_dir is not None, "temp_dir должна быть создана перед конвертацией"
         
         # Случай 1: Используем существующую ИБ
         if self.base_ib:
@@ -188,13 +199,13 @@ class ExtensionConverter(BaseConverter):
             # Проверяем доступность инструмента
             if not self.v8_tool.is_available():
                 raise ToolNotFoundError(
-                    "1cv8.exe не найден. "
+                    "1cv8.exe не найден. " +
                     "Установите платформу 1С или укажите путь в переменной V8_TOOL"
                 )
             
             # Создаем временную ИБ
             temp_db = self.temp_dir / 'base_ib'
-            temp_db.mkdir(exist_ok=True)
+            _ = temp_db.mkdir(exist_ok=True)
             
             # Формируем строку подключения для CREATEINFOBASE (File=path;)
             temp_db_str = str(temp_db).replace('\\', '/')
@@ -237,13 +248,13 @@ class ExtensionConverter(BaseConverter):
         # Проверяем доступность инструмента
         if not self.v8_tool.is_available():
             raise ToolNotFoundError(
-                "1cv8.exe не найден. "
+                "1cv8.exe не найден. " +
                 "Установите платформу 1С или укажите путь в переменной V8_TOOL"
             )
         
         # Создаем временную ИБ
         temp_db = self.temp_dir / 'base_ib'
-        temp_db.mkdir(exist_ok=True)
+        _ = temp_db.mkdir(exist_ok=True)
         
         # Формируем строку подключения для CREATEINFOBASE (File=path;)
         temp_db_str = str(temp_db).replace('\\', '/')
@@ -277,16 +288,19 @@ class ExtensionConverter(BaseConverter):
         # Проверяем доступность EDT инструмента
         if not self.edt_tool.is_available():
             raise ToolNotFoundError(
-                "EDT инструмент (ring/edtcli) не найден. "
+                "EDT инструмент (ring/edtcli) не найден. " +
                 "Установите EDT или укажите путь в переменной RING_TOOL/EDT_TOOL"
             )
         
+        # Проверяем что temp_dir создана
+        assert self.temp_dir is not None, "temp_dir должна быть создана перед конвертацией"
+        
         # Создаем временные директории
         temp_xml = self.temp_dir / 'tmp_xml'
-        temp_xml.mkdir(exist_ok=True)
+        _ = temp_xml.mkdir(exist_ok=True)
         
         edt_workspace = self.temp_dir / 'edt_ws'
-        edt_workspace.mkdir(exist_ok=True)
+        _ = edt_workspace.mkdir(exist_ok=True)
         
         try:
             # Этап 1: Экспорт EDT -> XML
@@ -392,15 +406,18 @@ class ExtensionConverter(BaseConverter):
         if self.convert_tool == 'ibcmd':
             if not self.ibcmd_tool.is_available():
                 raise ToolNotFoundError(
-                    "ibcmd.exe не найден. "
+                    "ibcmd.exe не найден. " +
                     "Установите платформу 1С или укажите путь в переменной IBCMD_TOOL"
                 )
         else:
             if not self.v8_tool.is_available():
                 raise ToolNotFoundError(
-                    "1cv8.exe не найден. "
+                    "1cv8.exe не найден. " +
                     "Установите платформу 1С или укажите путь в переменной V8_TOOL"
                 )
+        
+        # Проверяем что temp_dir создана
+        assert self.temp_dir is not None, "temp_dir должна быть создана перед конвертацией"
         
         try:
             # Этап 1: Подготовка базовой ИБ
@@ -511,15 +528,18 @@ class ExtensionConverter(BaseConverter):
         if self.convert_tool == 'ibcmd':
             if not self.ibcmd_tool.is_available():
                 raise ToolNotFoundError(
-                    "ibcmd.exe не найден. "
+                    "ibcmd.exe не найден. " +
                     "Установите платформу 1С или укажите путь в переменной IBCMD_TOOL"
                 )
         else:
             if not self.v8_tool.is_available():
                 raise ToolNotFoundError(
-                    "1cv8.exe не найден. "
+                    "1cv8.exe не найден. " +
                     "Установите платформу 1С или укажите путь в переменной V8_TOOL"
                 )
+        
+        # Проверяем что temp_dir создана
+        assert self.temp_dir is not None, "temp_dir должна быть создана перед конвертацией"
         
         try:
             output_file = Path(self.dst_path)
@@ -618,7 +638,7 @@ class ExtensionConverter(BaseConverter):
             target_format = "EDT"
         else:
             raise ValidationError(
-                f"Неподдерживаемый тип конвертации из CFE: {script_name}. "
+                f"Неподдерживаемый тип конвертации из CFE: {script_name}. " +
                 f"Поддерживаются: ext2xml, ext2edt"
             )
         
@@ -635,15 +655,18 @@ class ExtensionConverter(BaseConverter):
         # Проверяем доступность инструментов
         if not self.v8_tool.is_available():
             raise ToolNotFoundError(
-                "1cv8.exe не найден. "
+                "1cv8.exe не найден. " +
                 "Установите платформу 1С или укажите путь в переменной V8_TOOL"
             )
         
         if target_format == "EDT" and not self.edt_tool.is_available():
             raise ToolNotFoundError(
-                "EDT инструмент (ring/edtcli) не найден. "
+                "EDT инструмент (ring/edtcli) не найден. " +
                 "Установите EDT или укажите путь в переменной RING_TOOL/EDTCLI_TOOL"
             )
+        
+        # Проверяем что temp_dir создана
+        assert self.temp_dir is not None, "temp_dir должна быть создана перед конвертацией"
         
         try:
             # Этап 1: Подготовка базовой ИБ
@@ -750,7 +773,7 @@ class ExtensionConverter(BaseConverter):
                 
                 # Сначала выгружаем в XML
                 temp_xml = self.temp_dir / 'tmp_xml'
-                temp_xml.mkdir(exist_ok=True)
+                _ = temp_xml.mkdir(exist_ok=True)
                 
                 dump_log_file = self.temp_dir / 'dump_xml.log'
                 
@@ -780,9 +803,9 @@ class ExtensionConverter(BaseConverter):
                 
                 # Затем импортируем XML в EDT
                 edt_workspace = self.temp_dir / 'edt_ws'
-                edt_workspace.mkdir(exist_ok=True)
+                _ = edt_workspace.mkdir(exist_ok=True)
                 
-                import_log_file = self.temp_dir / 'import_edt.log'
+                _ = self.temp_dir / 'import_edt.log'  # Переменная не используется, но зарезервирована
                 
                 # Используем edtcli для импорта
                 if self.edt_tool.use_edtcli:

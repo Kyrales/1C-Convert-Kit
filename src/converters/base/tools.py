@@ -21,10 +21,14 @@ class ToolWrapper(ABC):
         logger: Логгер для вывода сообщений
     """
     
+    env_vars: Dict[str, str]
+    logger: Logger
+    tool_path: Optional[Path]
+    
     def __init__(self, env_vars: Dict[str, str], logger: Logger):
         self.env_vars = env_vars
         self.logger = logger
-        self.tool_path: Optional[Path] = None
+        self.tool_path = None
     
     def _log_command(self, cmd: List[str]):
         """
@@ -49,12 +53,16 @@ class ToolWrapper(ABC):
         pass
     
     @abstractmethod
-    def execute(self, *args, **kwargs) -> subprocess.CompletedProcess:
+    def execute(self, *args: str, **kwargs: str) -> "subprocess.CompletedProcess[str]":
         """
         Выполняет команду инструмента.
         
+        Args:
+            *args: Позиционные аргументы команды
+            **kwargs: Именованные аргументы команды
+        
         Returns:
-            CompletedProcess: Результат выполнения команды
+            CompletedProcess[str]: Результат выполнения команды
         """
         pass
     
@@ -104,12 +112,16 @@ class V8ToolWrapper(ToolWrapper):
         
         return None
     
-    def execute(self, *args, **kwargs) -> subprocess.CompletedProcess:
+    def execute(self, *args: str, **kwargs: str) -> "subprocess.CompletedProcess[str]":
         """
         Выполняет команду 1cv8.exe.
         
+        Args:
+            *args: Позиционные аргументы команды
+            **kwargs: Именованные аргументы команды
+        
         Returns:
-            CompletedProcess: Результат выполнения команды
+            CompletedProcess[str]: Результат выполнения команды
         """
         if not self.is_available():
             raise ToolNotFoundError("1cv8.exe не найден в системе")
@@ -472,12 +484,16 @@ class IbcmdToolWrapper(ToolWrapper):
         
         return None
     
-    def execute(self, *args, **kwargs) -> subprocess.CompletedProcess:
+    def execute(self, *args: str, **kwargs: str) -> "subprocess.CompletedProcess[str]":
         """
         Выполняет команду ibcmd.exe.
         
+        Args:
+            *args: Позиционные аргументы команды
+            **kwargs: Именованные аргументы команды
+        
         Returns:
-            CompletedProcess: Результат выполнения команды
+            CompletedProcess[str]: Результат выполнения команды
         """
         if not self.is_available():
             raise ToolNotFoundError("ibcmd.exe не найден в системе")
@@ -659,6 +675,9 @@ class EdtToolWrapper(ToolWrapper):
     Предоставляет методы для экспорта EDT проектов в XML.
     """
     
+    use_ring: bool
+    use_edtcli: bool
+    
     def __init__(self, env_vars: Dict[str, str], logger: Logger):
         super().__init__(env_vars, logger)
         self.use_ring = False
@@ -699,11 +718,6 @@ class EdtToolWrapper(ToolWrapper):
                 return tool_path
         
         # Ищем в PATH
-        # Выводим команду в режиме отладки
-
-        self._log_command(cmd)
-
-
         try:
             result = subprocess.run(
                 ['where', 'ring.bat'],
@@ -741,12 +755,16 @@ class EdtToolWrapper(ToolWrapper):
         
         return None
     
-    def execute(self, *args, **kwargs) -> subprocess.CompletedProcess:
+    def execute(self, *args: str, **kwargs: str) -> "subprocess.CompletedProcess[str]":
         """
         Выполняет команду EDT инструмента.
         
+        Args:
+            *args: Позиционные аргументы команды
+            **kwargs: Именованные аргументы команды
+        
         Returns:
-            CompletedProcess: Результат выполнения команды
+            CompletedProcess[str]: Результат выполнения команды
         """
         if not self.is_available():
             raise ToolNotFoundError("EDT инструмент (ring/edtcli) не найден в системе")

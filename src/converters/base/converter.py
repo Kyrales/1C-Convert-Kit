@@ -52,14 +52,14 @@ def format_duration(seconds: float) -> str:
 class Colors:
     """Цветовые коды ANSI для консольного вывода."""
     
-    RED = '\033[91m'
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    BLUE = '\033[94m'
-    MAGENTA = '\033[95m'
-    CYAN = '\033[96m'
-    WHITE = '\033[97m'
-    RESET = '\033[0m'
+    RED: str = '\033[91m'
+    GREEN: str = '\033[92m'
+    YELLOW: str = '\033[93m'
+    BLUE: str = '\033[94m'
+    MAGENTA: str = '\033[95m'
+    CYAN: str = '\033[96m'
+    WHITE: str = '\033[97m'
+    RESET: str = '\033[0m'
     
     @staticmethod
     def enable_windows_colors():
@@ -81,6 +81,9 @@ class Logger:
         silent: Если True, подавляет вывод сообщений
         debug: Если True, выводит отладочную информацию
     """
+    
+    silent: bool
+    debug: bool
     
     def __init__(self, silent: bool = False, debug: bool = False):
         self.silent = silent
@@ -159,11 +162,11 @@ class SourceDetector:
             return SourceType.FILE_IB
         
         # Проверка на серверную ИБ (формат /Sserver\basename)
-        if isinstance(path, str) and path.startswith('/S'):
+        if path.startswith('/S'):
             return SourceType.SERVER_IB
         
         # Проверка на файловую ИБ (формат /Fpath)
-        if isinstance(path, str) and path.startswith('/F'):
+        if path.startswith('/F'):
             return SourceType.FILE_IB
         
         # Проверка на .cf файл
@@ -186,10 +189,14 @@ class TempFileManager:
         converter_name: Имя конвертера (для создания уникальной папки)
     """
     
+    base_temp_dir: Path
+    converter_name: str
+    temp_dir: Optional[Path]
+    
     def __init__(self, base_temp_dir: str, converter_name: str):
         self.base_temp_dir = Path(base_temp_dir)
         self.converter_name = converter_name
-        self.temp_dir: Optional[Path] = None
+        self.temp_dir = None
     
     def create_temp_dir(self) -> Path:
         """
@@ -208,12 +215,13 @@ class TempFileManager:
         Удаляет временные файлы.
         
         Args:
-            force: Если True, удаляет без проверок
+            force: Если True, удаляет без проверок (не используется в текущей реализации)
         """
+        _ = force  # Параметр зарезервирован для будущего использования
         if self.temp_dir and self.temp_dir.exists():
             try:
                 shutil.rmtree(self.temp_dir)
-            except Exception as e:
+            except Exception:
                 # Игнорируем ошибки при удалении
                 pass
     
@@ -222,12 +230,12 @@ class TempFileManager:
         if self.temp_dir and self.temp_dir.exists():
             error_marker = self.temp_dir / 'ERROR.txt'
             try:
-                error_marker.write_text(
-                    f"Конвертация завершилась с ошибкой\n"
-                    f"Время: {datetime.now()}\n"
-                    f"Конвертер: {self.converter_name}\n",
-                    encoding='utf-8'
+                error_text = (
+                    f"Конвертация завершилась с ошибкой\n" +
+                    f"Время: {datetime.now()}\n" +
+                    f"Конвертер: {self.converter_name}\n"
                 )
+                _ = error_marker.write_text(error_text, encoding='utf-8')
             except Exception:
                 pass
 
@@ -236,7 +244,7 @@ class ToolOutputParser:
     """Парсер вывода инструментов 1С."""
     
     # Список кодировок для попытки чтения (в порядке приоритета)
-    ENCODINGS = ['utf-8', 'cp1251', 'cp866', 'latin-1']
+    ENCODINGS: List[str] = ['utf-8', 'cp1251', 'cp866', 'latin-1']
     
     @staticmethod
     def read_file_with_encoding(file_path: Path) -> Optional[str]:
@@ -276,9 +284,9 @@ class ToolOutputParser:
             log_file: Путь к лог-файлу
             
         Returns:
-            list: Список строк с ошибками
+            List[str]: Список строк с ошибками
         """
-        errors = []
+        errors: List[str] = []
         content = ToolOutputParser.read_file_with_encoding(log_file)
         
         # Ключевые слова, указывающие на успешное завершение
@@ -360,6 +368,8 @@ class ToolNotFoundError(ConversionError):
 class ToolExecutionError(ConversionError):
     """Ошибка выполнения инструмента."""
     
+    tool_output: str
+    
     def __init__(self, message: str, tool_output: str = "", temp_dir: Optional[Path] = None):
         super().__init__(message, temp_dir)
         self.tool_output = tool_output
@@ -381,6 +391,20 @@ class BaseConverter(ABC):
         debug: Если True, выводит отладочную информацию
     """
     
+    env_vars: Dict[str, str]
+    silent: bool
+    progress_callback: Optional[Callable[[str, int], None]]
+    debug: bool
+    src_path: str
+    dst_path: str
+    temp_dir: Optional[Path]
+    logger: Logger
+    cleanup_on_success: bool
+    cleanup_on_error: bool
+    temp_manager: Optional[TempFileManager]
+    stage_start_time: Optional[float]
+    conversion_start_time: Optional[float]
+    
     def __init__(
         self, 
         env_vars: Dict[str, str], 
@@ -394,18 +418,18 @@ class BaseConverter(ABC):
         self.debug = debug
         self.src_path = env_vars.get('V8_SRC_PATH', '')
         self.dst_path = env_vars.get('V8_DST_PATH', '')
-        self.temp_dir: Optional[Path] = None
+        self.temp_dir = None
         self.logger = Logger(silent, debug)
         
         # Проверяем параметр V8_TEMP_AFTER_CLEAN
         temp_after_clean = env_vars.get('V8_TEMP_AFTER_CLEAN', '0')
         self.cleanup_on_success = temp_after_clean == '1'
         self.cleanup_on_error = False
-        self.temp_manager: Optional[TempFileManager] = None
+        self.temp_manager = None
         
         # Отслеживание времени
-        self.stage_start_time: Optional[float] = None
-        self.conversion_start_time: Optional[float] = None
+        self.stage_start_time = None
+        self.conversion_start_time = None
     
     def validate(self) -> None:
         """

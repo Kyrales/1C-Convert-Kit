@@ -7,7 +7,7 @@
 """
 
 from pathlib import Path
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Tuple, Callable
 
 from ..base.converter import (
     BaseConverter,
@@ -32,11 +32,16 @@ class DataProcessorConverter(BaseConverter):
         progress_callback: Опциональный callback для отчета о прогрессе
     """
     
+    base_ib: str
+    base_config: str
+    v8_tool: V8ToolWrapper
+    edt_tool: EdtToolWrapper
+    
     def __init__(
         self, 
         env_vars: Dict[str, str], 
         silent: bool = False,
-        progress_callback: Optional[callable] = None,
+        progress_callback: Optional[Callable[[str, int], None]] = None,
         debug: bool = False
     ):
         super().__init__(env_vars, silent, progress_callback, debug)
@@ -72,7 +77,7 @@ class DataProcessorConverter(BaseConverter):
         dst_path_obj = Path(self.dst_path)
         if dst_path_obj.suffix in ['.epf', '.erf']:
             raise ValidationError(
-                f"V8_DST_PATH должен указывать на директорию для выходных файлов, "
+                f"V8_DST_PATH должен указывать на директорию для выходных файлов, " +
                 f"а не на конкретный файл. Получено: {self.dst_path}"
             )
     
@@ -96,7 +101,7 @@ class DataProcessorConverter(BaseConverter):
             return self._convert_from_xml()
         else:
             raise ValidationError(
-                f"Неподдерживаемый тип источника: {source_type.value}. "
+                f"Неподдерживаемый тип источника: {source_type.value}. " +
                 f"Поддерживаются: EDT, XML"
             )
     
@@ -144,7 +149,7 @@ class DataProcessorConverter(BaseConverter):
             # Проверяем доступность инструмента
             if not self.v8_tool.is_available():
                 raise ToolNotFoundError(
-                    "1cv8.exe не найден. "
+                    "1cv8.exe не найден. " +
                     "Установите платформу 1С или укажите путь в переменной V8_TOOL"
                 )
             
@@ -192,7 +197,7 @@ class DataProcessorConverter(BaseConverter):
         # Проверяем доступность инструмента
         if not self.v8_tool.is_available():
             raise ToolNotFoundError(
-                "1cv8.exe не найден. "
+                "1cv8.exe не найден. " +
                 "Установите платформу 1С или укажите путь в переменной V8_TOOL"
             )
         
@@ -217,7 +222,7 @@ class DataProcessorConverter(BaseConverter):
         # Возвращаем путь к ИБ (без префикса File=)
         return str(temp_db)
     
-    def _find_processor_files(self, xml_path: Path) -> List[tuple]:
+    def _find_processor_files(self, xml_path: Path) -> List[Tuple[Path, str, str]]:
         """
         Находит все файлы обработок и отчетов в XML директории.
         
@@ -264,7 +269,7 @@ class DataProcessorConverter(BaseConverter):
         # Проверяем доступность EDT инструмента
         if not self.edt_tool.is_available():
             raise ToolNotFoundError(
-                "EDT инструмент (ring/edtcli) не найден. "
+                "EDT инструмент (ring/edtcli) не найден. " +
                 "Установите EDT или укажите путь в переменной RING_TOOL/EDT_TOOL"
             )
         

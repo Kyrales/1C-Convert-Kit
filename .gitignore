@@ -63,3 +63,6 @@ desktop.ini
 tests/fixtures/bin/*
 tests/fixtures/output/*
 !tests/fixtures/output/.gitkeep
+
+
+pyrightconfig.json

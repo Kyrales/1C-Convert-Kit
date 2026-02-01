@@ -5,7 +5,7 @@
 """
 
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, Optional, Callable
 
 from ..base.converter import (
     BaseConverter,
@@ -31,11 +31,13 @@ class ValidationConverter(BaseConverter):
         progress_callback: Опциональный callback для отчета о прогрессе
     """
     
+    edt_tool: EdtToolWrapper
+    
     def __init__(
         self, 
         env_vars: Dict[str, str], 
         silent: bool = False,
-        progress_callback: Optional[callable] = None,
+        progress_callback: Optional[Callable[[str, int], None]] = None,
         debug: bool = False
     ):
         super().__init__(env_vars, silent, progress_callback, debug)
@@ -87,8 +89,8 @@ class ValidationConverter(BaseConverter):
         source_type = self.detect_source_type()
         if source_type != SourceType.EDT:
             raise ValidationError(
-                f"Источник должен быть EDT проектом. "
-                f"Обнаружен тип: {source_type.value}. "
+                f"Источник должен быть EDT проектом. " +
+                f"Обнаружен тип: {source_type.value}. " +
                 f"Убедитесь что V8_SRC_PATH указывает на директорию с папкой DT-INF."
             )
         
@@ -118,7 +120,7 @@ class ValidationConverter(BaseConverter):
         # Проверяем доступность EDT инструмента
         if not self.edt_tool.is_available():
             raise ToolNotFoundError(
-                "EDT инструмент (ring/edtcli) не найден. "
+                "EDT инструмент (ring/edtcli) не найден. " +
                 "Установите EDT или укажите путь в переменной RING_TOOL/EDT_TOOL"
             )
         
@@ -195,7 +197,8 @@ class ValidationConverter(BaseConverter):
         # Проверяем что есть хотя бы один из файлов
         if not config_xml.exists() and not extension_xml.exists():
             raise ValidationError(
-                f"EDT проект не содержит ни Configuration.xml, ни Extension.xml в DT-INF: {edt_project}"
+                f"EDT проект не содержит ни Configuration.xml, " +
+                f"ни Extension.xml в DT-INF: {edt_project}"
             )
         
         # Проверяем наличие директории src

@@ -6,19 +6,23 @@
 
 import os
 import sys
-import subprocess
 import argparse
 from pathlib import Path
-from typing import Optional
+from typing import Dict, List, Optional
+
+# Добавляем корневую директорию проекта в sys.path для корректных импортов
+_SCRIPT_DIR = Path(__file__).parent.parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
 
 
 # ANSI цветовые коды для Windows
 class Colors:
     """Цветовые коды для консоли"""
-    GREEN = '\033[92m'
-    RED = '\033[91m'
-    YELLOW = '\033[93m'
-    RESET = '\033[0m'
+    GREEN: str = '\033[92m'
+    RED: str = '\033[91m'
+    YELLOW: str = '\033[93m'
+    RESET: str = '\033[0m'
     
     @staticmethod
     def enable_windows_colors():
@@ -32,27 +36,27 @@ class Colors:
                 pass
 
 
-def print_info(message):
+def print_info(message: str) -> None:
     """Выводит информационное сообщение зеленым цветом"""
     print(f"{Colors.GREEN}[ИНФО]{Colors.RESET} {message}")
 
 
-def print_error(message):
+def print_error(message: str) -> None:
     """Выводит сообщение об ошибке красным цветом"""
     print(f"{Colors.RED}[ОШИБКА]{Colors.RESET} {message}")
 
 
-def print_warning(message):
+def print_warning(message: str) -> None:
     """Выводит предупреждение желтым цветом"""
     print(f"{Colors.YELLOW}[ВНИМАНИЕ]{Colors.RESET} {message}")
 
 
-def print_success(message):
+def print_success(message: str) -> None:
     """Выводит сообщение об успехе зеленым цветом"""
     print(f"{Colors.GREEN}[УСПЕХ]{Colors.RESET} {message}")
 
 
-def load_env_file(env_path, silent=False):
+def load_env_file(env_path: str, silent: bool = False) -> Optional[Dict[str, str]]:
     """
     Загружает переменные из .env файла
     
@@ -63,7 +67,7 @@ def load_env_file(env_path, silent=False):
     Returns:
         dict: словарь с переменными окружения
     """
-    env_vars = {}
+    env_vars: Dict[str, str] = {}
     
     if not os.path.exists(env_path):
         if not silent:
@@ -85,7 +89,7 @@ def load_env_file(env_path, silent=False):
     return env_vars
 
 
-def find_env_files(path):
+def find_env_files(path: str) -> List[str]:
     """
     Находит .env файлы по указанному пути
     
@@ -95,33 +99,33 @@ def find_env_files(path):
     Returns:
         list: список путей к найденным .env файлам
     """
-    path = Path(path)
+    path_obj = Path(path)
     
     # Если это файл, возвращаем его
-    if path.is_file():
-        if path.suffix == '.env' or path.name.endswith('.env'):
-            return [str(path)]
+    if path_obj.is_file():
+        if path_obj.suffix == '.env' or path_obj.name.endswith('.env'):
+            return [str(path_obj)]
         else:
-            print_error(f"Файл {path} не является .env файлом")
+            print_error(f"Файл {path_obj} не является .env файлом")
             return []
     
     # Если это каталог, ищем все .env файлы
-    if path.is_dir():
-        env_files = sorted(path.glob('*.env'))
+    if path_obj.is_dir():
+        env_files = sorted(path_obj.glob('*.env'))
         if env_files:
-            print_info(f"Найдено {len(env_files)} .env файлов в каталоге {path}:")
+            print_info(f"Найдено {len(env_files)} .env файлов в каталоге {path_obj}:")
             for env_file in env_files:
                 print_info(f"  - {env_file.name}")
             return [str(f) for f in env_files]
         else:
-            print_error(f"Не найдено .env файлов в каталоге {path}")
+            print_error(f"Не найдено .env файлов в каталоге {path_obj}")
             return []
     
-    print_error(f"Путь не существует: {path}")
+    print_error(f"Путь не существует: {path_obj}")
     return []
 
 
-def merge_env_files(env_files, silent=False):
+def merge_env_files(env_files: List[str], silent: bool = False) -> Optional[Dict[str, str]]:
     """
     Объединяет несколько .env файлов в один словарь
     Более вложенные файлы (из папки проекта) имеют приоритет над базовыми
@@ -134,7 +138,7 @@ def merge_env_files(env_files, silent=False):
     Returns:
         dict: объединенный словарь с переменными окружения
     """
-    merged_vars = {}
+    merged_vars: Dict[str, str] = {}
     
     for env_file in env_files:
         env_vars = load_env_file(env_file, silent=silent)
@@ -157,7 +161,7 @@ def merge_env_files(env_files, silent=False):
     return merged_vars
 
 
-def run_conversion(env_files, output_path=None, debug=False):
+def run_conversion(env_files: List[str], output_path: Optional[str] = None, debug: bool = False) -> int:
     """
     Запускает конвертацию используя Python конвертеры
     
@@ -170,10 +174,10 @@ def run_conversion(env_files, output_path=None, debug=False):
         int: код возврата (0 - успех, 1 - ошибка)
     """
     # Получаем абсолютные пути к .env файлам
-    env_files = [os.path.abspath(f) for f in env_files]
+    env_files_abs: List[str] = [os.path.abspath(f) for f in env_files]
     
     # Загружаем и объединяем переменные из всех .env файлов
-    env_vars = merge_env_files(env_files)
+    env_vars = merge_env_files(env_files_abs)
     if env_vars is None:
         return 1
     
@@ -189,13 +193,7 @@ def run_conversion(env_files, output_path=None, debug=False):
         return 1
     
     # Получаем конвертер из реестра
-    try:
-        from converters.registry import ConverterRegistry
-    except ImportError:
-        # Пробуем импортировать с относительным путем
-        import sys
-        sys.path.insert(0, str(Path(__file__).parent.parent))
-        from converters.registry import ConverterRegistry
+    from converters.registry import ConverterRegistry  # type: ignore
     
     registry = ConverterRegistry()
     converter_class = registry.get_converter(script_name)
@@ -256,7 +254,7 @@ def run_conversion(env_files, output_path=None, debug=False):
         return 1
 
 
-def main():
+def main() -> None:
     """Главная функция"""
     # Включаем поддержку цветов в Windows
     Colors.enable_windows_colors()
@@ -277,18 +275,18 @@ def main():
         """
     )
     
-    parser.add_argument(
+    _ = parser.add_argument(
         '-e', '--env',
         dest='project_path',
         help='Путь к папке проекта (с .env файлами и скриптом конвертации)'
     )
     
-    parser.add_argument(
+    _ = parser.add_argument(
         '-o', '--output',
         help='Путь для сохранения результата (переопределяет V8_DST_PATH из .env)'
     )
     
-    parser.add_argument(
+    _ = parser.add_argument(
         '-d', '--debug',
         action='store_true',
         help='Режим отладки (выводит выполняемые команды)'
@@ -296,15 +294,20 @@ def main():
     
     args = parser.parse_args()
     
+    # Извлекаем аргументы с явными типами
+    project_path_arg: Optional[str] = getattr(args, 'project_path', None)
+    output_arg: Optional[str] = getattr(args, 'output', None)
+    debug_arg: bool = getattr(args, 'debug', False)
+    
     # Собираем все .env файлы
-    all_env_files = []
+    all_env_files: List[str] = []
     script_dir = Path(__file__).parent.parent.parent  # Корень проекта
     projects_dir = script_dir / 'projects'
     
-    if not args.project_path:
+    if not project_path_arg:
         # Если путь не указан, ищем все .env в папке projects
         print_info(f"Параметр --env не указан, поиск .env файлов в: {projects_dir}")
-        env_files = find_env_files(projects_dir)
+        env_files = find_env_files(str(projects_dir))
         
         if not env_files:
             print_error("Не найдено ни одного .env файла")
@@ -313,7 +316,7 @@ def main():
         all_env_files.extend(env_files)
     else:
         # Указан путь к папке проекта
-        project_path = Path(args.project_path)
+        project_path = Path(project_path_arg)
         
         if not project_path.is_absolute():
             project_path = Path(os.getcwd()) / project_path
@@ -336,7 +339,7 @@ def main():
             print_warning(f"Базовый .env файл не найден в: {projects_dir}")
         
         # 2. Затем ищем все .env файлы в папке проекта
-        project_env_files = find_env_files(project_path)
+        project_env_files = find_env_files(str(project_path))
         if not project_env_files:
             print_error(f"Не найдено .env файлов в папке проекта: {project_path}")
             sys.exit(1)
@@ -348,7 +351,7 @@ def main():
         sys.exit(1)
     
     # Запускаем конвертацию
-    exit_code = run_conversion(all_env_files, args.output, args.debug)
+    exit_code = run_conversion(all_env_files, output_arg, debug_arg)
     sys.exit(exit_code)
 
 

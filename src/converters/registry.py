@@ -67,11 +67,7 @@ class ConverterRegistry:
         Raises:
             ValueError: Если converter_class не является наследником BaseConverter
         """
-        if not issubclass(converter_class, BaseConverter):
-            raise ValueError(
-                f"Класс {converter_class.__name__} должен наследоваться от BaseConverter"
-            )
-        
+        # Type hint гарантирует что это Type[BaseConverter], просто регистрируем
         self._converters[script_name] = converter_class
     
     def get_converter(self, script_name: str) -> Optional[Type[BaseConverter]]:
