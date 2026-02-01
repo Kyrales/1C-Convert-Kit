@@ -235,6 +235,17 @@ class ProjectEditorDialog:
             is_required = info['required']
             param_type = info['type']
             
+            # Получаем значение из базового .env для информации
+            base_value = self.base_env_params.get(param, '')
+            
+            # Определяем отображаемое значение:
+            # - Если чекбокс включен или обязательный параметр - показываем значение из проекта
+            # - Если чекбокс выключен и есть значение в base_env - показываем его с пометкой
+            if is_enabled or is_required:
+                display_value = param_value
+            else:
+                display_value = f"{base_value} (base_1.env)" if base_value else ''
+            
             # Чекбокс (для обязательных - disabled)
             checkbox = sg.Checkbox('', key=f'-CHK_{param}-', default=is_enabled or is_required,
                                   disabled=is_required, enable_events=True,
@@ -249,22 +260,27 @@ class ProjectEditorDialog:
             disabled_bg = COLORS['bg']  # Темный фон для недоступных полей
             enabled_bg = COLORS['bg_secondary']  # Светлее для доступных
             
+            # Цвет текста для информационных значений из base_env
+            text_color = COLORS['text'] if (is_enabled or is_required) else COLORS['text_dim']
+            
             # Контекстное меню для поддержки Ctrl+C/V/X/A
             right_click_menu = ['', ['Копировать', 'Вставить', 'Вырезать', 'Выделить все', '---', 'Отменить']]
             
             if param_type == 'boolean':
-                input_field = sg.Combo(['0', '1'], default_value=param_value or '0', 
+                input_field = sg.Combo(['0', '1'], default_value=display_value or '0', 
                                       key=f'-VAL_{param}-', size=(45, 1), readonly=True,
                                       background_color=enabled_bg if (is_enabled or is_required) else disabled_bg,
-                                      text_color=COLORS['text'],
-                                      disabled=not (is_enabled or is_required))
+                                      text_color=text_color,
+                                      disabled=not (is_enabled or is_required),
+                                      metadata={'base_value': base_value})
             else:
-                input_field = sg.Input(param_value, key=f'-VAL_{param}-', size=(45, 1),
+                input_field = sg.Input(display_value, key=f'-VAL_{param}-', size=(45, 1),
                                       background_color=enabled_bg if (is_enabled or is_required) else disabled_bg,
-                                      text_color=COLORS['text'],
+                                      text_color=text_color,
                                       disabled=not (is_enabled or is_required),
                                       enable_events=False,
-                                      right_click_menu=right_click_menu)
+                                      right_click_menu=right_click_menu,
+                                      metadata={'base_value': base_value})
             
             # Кнопка помощи "?" с описанием параметра
             help_btn = sg.Button('?', key=f'-HELP_{param}-', size=(2, 1),
@@ -370,8 +386,36 @@ class ProjectEditorDialog:
     
     def show(self):
         """Показывает диалог и возвращает результат"""
-        layout, title = self._create_layout()
+        # Используем цикл для пересоздания окна при смене скрипта
+        current_script = None
+        saved_values = None
         
+        try:
+            while True:
+                result = self._show_window(script_name=current_script, saved_values=saved_values)
+                
+                # Если результат - это запрос на смену скрипта
+                if isinstance(result, dict) and result.get('_action') == 'change_script':
+                    current_script = result.get('script')
+                    saved_values = result.get('values')
+                    continue
+                
+                # Иначе возвращаем результат (None или данные проекта)
+                return result
+                
+        except Exception as e:
+            import traceback
+            traceback.print_exc()
+            sg.popup_error(f"Критическая ошибка в диалоге:\n{e}\n\nПодробности в консоли",
+                          background_color=COLORS['bg'],
+                          text_color=COLORS['error'])
+            return None
+    
+    def _show_window(self, script_name=None, saved_values=None):
+        """Внутренний метод для показа окна"""
+        layout, title = self._create_layout(script_name=script_name)
+        
+        icon_path = PROJECTS_DIR.parent / 'docs' / 'images' / 'icons8-cyberpunk-gradient-16.ico'
         self.window = sg.Window(
             title,
             layout,
@@ -379,7 +423,8 @@ class ProjectEditorDialog:
             finalize=True,
             modal=True,
             background_color=COLORS['bg'],
-            resizable=False
+            resizable=False,
+            icon=str(icon_path) if icon_path.exists() else None
         )
         
         # Включаем undo/redo для всех полей Input (включая Наименование)
@@ -393,53 +438,61 @@ class ProjectEditorDialog:
                     except:
                         pass
         
+        # Восстанавливаем сохраненные значения если есть
+        if saved_values:
+            if 'name' in saved_values:
+                self.window['-NAME-'].update(saved_values['name'])
+            if 'params' in saved_values:
+                for param, value in saved_values['params'].items():
+                    value_key = f'-VAL_{param}-'
+                    if value_key in self.window.AllKeysDict:
+                        self.window[value_key].update(value)
+        
         while True:
             event, values = self.window.read()
             
             if event in (sg.WIN_CLOSED, '-CANCEL-'):
-                self.result = None
-                break
-            
-            # Изменение скрипта - пересоздаем layout
-            elif event == '-SCRIPT-':
-                new_script = values['-SCRIPT-']
                 self.window.close()
-                
-                # Сохраняем текущие значения полей
-                current_values = {}
-                for key, value in values.items():
-                    if key.startswith('-VAL_'):
-                        param_name = key[5:]  # Убираем '-VAL_'
-                        if value:
-                            current_values[param_name] = value
-                
-                # Обновляем project_data с текущими значениями
-                temp_project_data = self.project_data.copy()
-                temp_project_data['script'] = new_script
-                temp_project_data['_current_values'] = current_values
-                
-                # Пересоздаем окно
-                self.project_data = temp_project_data
-                layout, title = self._create_layout(script_name=new_script)
-                
-                self.window = sg.Window(
-                    title,
-                    layout,
-                    size=(950, 800),
-                    finalize=True,
-                    modal=True,
-                    background_color=COLORS['bg'],
-                    resizable=False
-                )
-                
-                # Восстанавливаем значения полей
-                if '_current_values' in temp_project_data:
-                    for param, value in temp_project_data['_current_values'].items():
-                        value_key = f'-VAL_{param}-'
-                        if value_key in self.window.AllKeysDict:
-                            self.window[value_key].update(value)
-                
-                continue
+                return None
+            
+            # Изменение скрипта - возвращаем специальный результат для пересоздания окна
+            elif event == '-SCRIPT-':
+                try:
+                    new_script = values['-SCRIPT-']
+                    
+                    # Сохраняем текущие значения полей
+                    current_values = {
+                        'name': values['-NAME-'],
+                        'params': {}
+                    }
+                    for key, value in values.items():
+                        # ВАЖНО: Проверяем, что key - это строка, а не число
+                        if isinstance(key, str) and key.startswith('-VAL_'):
+                            param_name = key[5:]  # Убираем '-VAL_'
+                            if value and not value.endswith('(base_1.env)'):
+                                current_values['params'][param_name] = value
+                    
+                    # Обновляем project_data с новым скриптом
+                    self.project_data['script'] = new_script
+                    
+                    # Закрываем текущее окно
+                    self.window.close()
+                    
+                    # Возвращаем специальный результат для пересоздания окна
+                    return {
+                        '_action': 'change_script',
+                        'script': new_script,
+                        'values': current_values
+                    }
+                    
+                except Exception as e:
+                    import traceback
+                    traceback.print_exc()
+                    sg.popup_error(f"Ошибка при смене скрипта:\n{e}\n\nПодробности в консоли",
+                                  background_color=COLORS['bg'],
+                                  text_color=COLORS['error'])
+                    # Не закрываем окно, продолжаем работу
+                    continue
             
             # Изменение чекбокса - обновляем доступность поля и цвет фона
             elif event.startswith('-CHK_'):
@@ -449,10 +502,25 @@ class ProjectEditorDialog:
                 value_key = f'-VAL_{param_name}-'
                 browse_key = f'-BROWSE_{param_name}-'
                 
-                # Обновляем цвет фона в зависимости от состояния
-                new_bg = COLORS['bg_secondary'] if is_checked else COLORS['bg']
+                # Получаем значение из базового .env
+                base_value = self.base_env_params.get(param_name, '')
                 
-                self.window[value_key].update(disabled=not is_checked, background_color=new_bg)
+                # Обновляем цвет фона и текста в зависимости от состояния
+                new_bg = COLORS['bg_secondary'] if is_checked else COLORS['bg']
+                new_text_color = COLORS['text'] if is_checked else COLORS['text_dim']
+                
+                # Обновляем значение поля:
+                # - Если включаем чекбокс - очищаем поле (пользователь будет вводить свое значение)
+                # - Если выключаем чекбокс - показываем значение из base_env с пометкой
+                if is_checked:
+                    # Включили чекбокс - очищаем поле
+                    new_value = ''
+                else:
+                    # Выключили чекбокс - показываем информационное значение из base_env
+                    new_value = f"{base_value} (base_1.env)" if base_value else ''
+                
+                self.window[value_key].update(value=new_value, disabled=not is_checked, 
+                                             background_color=new_bg, text_color=new_text_color)
                 if browse_key in self.window.AllKeysDict:
                     self.window[browse_key].update(disabled=not is_checked)
             
@@ -605,7 +673,8 @@ class ProjectEditorDialog:
                     
                     if checkbox_key in values and values[checkbox_key]:
                         param_value = values[value_key]
-                        if param_value:  # Сохраняем только непустые значения
+                        # Сохраняем только непустые значения и не информационные (без пометки base_1.env)
+                        if param_value and not param_value.endswith('(base_1.env)'):
                             params[param] = param_value
                 
                 # Проверяем обязательные поля
@@ -620,13 +689,13 @@ class ProjectEditorDialog:
                     continue
                 
                 # Формируем результат
-                self.result = {
+                result = {
                     'name': project_name,
                     'script': script_name,
                     'params': params,
                     'original_name': self.project_data.get('name', '') if self.mode == 'edit' else None
                 }
-                break
-        
-        self.window.close()
-        return self.result
+                
+                # Закрываем окно и возвращаем результат
+                self.window.close()
+                return result

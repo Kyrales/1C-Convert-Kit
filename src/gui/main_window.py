@@ -40,6 +40,7 @@ class CyberpunkGUI:
         self.scan_projects()
         
         # Создаем окно
+        icon_path = SCRIPT_DIR / 'docs' / 'images' / 'icons8-cyberpunk-gradient-16.ico'
         self.window = sg.Window(
             f'1C-Convert-Kit - Cyberpunk Edition | Версия {VERSION}',
             self.create_layout(),
@@ -47,7 +48,8 @@ class CyberpunkGUI:
             finalize=True,
             resizable=True,
             background_color=COLORS['bg'],
-            return_keyboard_events=True
+            return_keyboard_events=True,
+            icon=str(icon_path) if icon_path.exists() else None
         )
         
         # Настраиваем таблицу
@@ -100,25 +102,29 @@ class CyberpunkGUI:
                          border_width=0, font=('Arial', 10, 'bold'))
             ],
             
-            # Таблица проектов
-            [sg.Table(
-                values=[],
-                headings=['✓', 'Наименование', 'Скрипт', 'Путь выгрузки'],
-                key='-TABLE-',
-                enable_events=True,
-                select_mode=sg.TABLE_SELECT_MODE_BROWSE,
-                auto_size_columns=False,
-                col_widths=[3, 40, 15, 90],
-                num_rows=10,
-                font=('Consolas', 13),
-                background_color=COLORS['bg_secondary'],
-                text_color=COLORS['primary'],
-                alternating_row_color=COLORS['bg'],
-                header_background_color=COLORS['bg'],
-                header_text_color=COLORS['primary'],
-                justification='left',
-                selected_row_colors=(COLORS['bg'], COLORS['accent']),
-            )],
+            # Таблица проектов и иконка
+            [
+                sg.Table(
+                    values=[],
+                    headings=['✓', 'Наименование', 'Скрипт', 'Путь выгрузки'],
+                    key='-TABLE-',
+                    enable_events=True,
+                    select_mode=sg.TABLE_SELECT_MODE_BROWSE,
+                    auto_size_columns=False,
+                    col_widths=[3, 40, 15, 90],
+                    num_rows=10,
+                    font=('Consolas', 13),
+                    background_color=COLORS['bg_secondary'],
+                    text_color=COLORS['primary'],
+                    alternating_row_color=COLORS['bg'],
+                    header_background_color=COLORS['bg'],
+                    header_text_color=COLORS['primary'],
+                    justification='left',
+                    selected_row_colors=(COLORS['bg'], COLORS['accent']),
+                ),
+                sg.Image(str(SCRIPT_DIR / 'docs' / 'images' / 'icons8-cyberpunk-gradient-96.png'),
+                        background_color=COLORS['bg'])
+            ],
             
             # Кнопки управления
             [
