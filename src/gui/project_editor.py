@@ -133,6 +133,31 @@ class ProjectEditorDialog:
         
         return 'text'
     
+    def _get_param_category(self, param_name: str, script_name: str) -> str:
+        """
+        Определяет категорию параметра
+        
+        Returns:
+            str: 'common' - общий параметр
+                 'special' - специальный параметр проекта (не common)
+                 'not_described' - параметр отсутствует в описании
+        """
+        if not self.params_descriptions:
+            return 'not_described'
+        
+        # Проверяем в common
+        if 'common' in self.params_descriptions:
+            if param_name in self.params_descriptions['common']:
+                return 'common'
+        
+        # Проверяем в специфичных для скрипта
+        if script_name in self.params_descriptions:
+            if param_name in self.params_descriptions[script_name]:
+                return 'special'
+        
+        # Параметр не найден в описании
+        return 'not_described'
+    
     def _validate_project_name(self, name: str) -> "tuple[bool, str]":
         """
         Валидирует имя проекта
@@ -259,10 +284,30 @@ class ProjectEditorDialog:
             else:
                 display_value = f"{base_value} (base_1.env)" if base_value else ''
             
+            # Определяем категорию параметра для маркера
+            param_category = self._get_param_category(param, current_script)
+            
             # Чекбокс (для обязательных - disabled)
             checkbox = sg.Checkbox('', key=f'-CHK_{param}-', default=is_enabled or is_required,
                                   disabled=is_required, enable_events=True,
                                   background_color=COLORS['bg'])
+            
+            # Маркер категории параметра (S - special, N - not described)
+            marker_elements = []
+            if param_category == 'special':
+                marker = sg.Text('S', size=(2, 1), text_color=COLORS['cyan'], 
+                               background_color=COLORS['bg'], font=('Consolas', 10, 'bold'),
+                               tooltip='Special - специальная настройка проекта')
+                marker_elements.append(marker)
+            elif param_category == 'not_described':
+                marker = sg.Text('N', size=(2, 1), text_color=COLORS['yellow'], 
+                               background_color=COLORS['bg'], font=('Consolas', 10, 'bold'),
+                               tooltip='Not described - параметр отсутствует в описании')
+                marker_elements.append(marker)
+            else:
+                # Для common параметров - пустое место
+                marker = sg.Text('', size=(2, 1), background_color=COLORS['bg'])
+                marker_elements.append(marker)
             
             # Метка параметра (без tooltip, будет кнопка ?)
             label = sg.Text(f'{param}:', size=(25, 1), text_color=COLORS['text'], 
@@ -306,9 +351,9 @@ class ProjectEditorDialog:
                                       button_color=(COLORS['text'], COLORS['bg_secondary']),
                                       disabled=not (is_enabled or is_required),
                                       metadata={'type': param_type})  # Сохраняем тип для обработки
-                params_column.append([checkbox, label, input_field, help_btn, browse_btn])
+                params_column.append([checkbox] + marker_elements + [label, input_field, help_btn, browse_btn])
             else:
-                params_column.append([checkbox, label, input_field, help_btn])
+                params_column.append([checkbox] + marker_elements + [label, input_field, help_btn])
         
         # Добавляем колонку с прокруткой
         layout.append([

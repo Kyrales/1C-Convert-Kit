@@ -170,11 +170,11 @@ class CyberpunkGUI:
             # Таблица деталей .env файла
             [sg.Table(
                 values=[],
-                headings=['Параметр', 'Значение', 'Описание'],
+                headings=['', 'Параметр', 'Значение', 'Описание'],
                 key='-DETAILS_TABLE-',
                 enable_events=False,
                 auto_size_columns=False,
-                col_widths=[30, 60, 110],
+                col_widths=[3, 27, 60, 110],
                 num_rows=15,
                 font=('Consolas', 10),
                 background_color=COLORS['bg_secondary'],
@@ -311,6 +311,44 @@ class CyberpunkGUI:
         
         return ''
     
+    def _get_param_category(self, param_name: str, script_name: str) -> str:
+        """
+        Определяет категорию параметра
+        
+        Args:
+            param_name: имя параметра (может содержать суффикс с именем файла)
+            script_name: имя скрипта (например: conf2cf)
+        
+        Returns:
+            str: 'common' - общий параметр
+                 'special' - специальный параметр проекта (не common)
+                 'not_described' - параметр отсутствует в описании
+        """
+        if not self.params_descriptions:
+            return 'not_described'
+        
+        # Убираем суффикс с именем файла, если есть (например, "V8_VERSION (base_1.env)" -> "V8_VERSION")
+        clean_param_name = param_name.split(' (')[0].strip()
+        
+        # Проверяем в common
+        if 'common' in self.params_descriptions:
+            if clean_param_name in self.params_descriptions['common']:
+                return 'common'
+        
+        # Проверяем в специфичных для скрипта
+        if script_name in self.params_descriptions:
+            if clean_param_name in self.params_descriptions[script_name]:
+                return 'special'
+        
+        # Пробуем с .cmd для обратной совместимости
+        script_key_with_cmd = f"{script_name}.cmd"
+        if script_key_with_cmd in self.params_descriptions:
+            if clean_param_name in self.params_descriptions[script_key_with_cmd]:
+                return 'special'
+        
+        # Параметр не найден в описании
+        return 'not_described'
+    
     def update_details_table(self) -> None:
         """Обновляет таблицу деталей выбранного проекта с объединением базового .env"""
         if self.selected_row is None or self.selected_row >= len(self.projects):
@@ -360,7 +398,12 @@ class CyberpunkGUI:
                 if param_name in base_params and base_params[param_name] != value:
                     value = f"{value} (в {base_env_name} = {base_params[param_name]})"
                 description = self._get_param_description(param_name, script_name)
-                details_data.append([param_name, value, description])
+                
+                # Определяем маркер категории
+                category = self._get_param_category(param_name, script_name)
+                marker = self._get_category_marker(category)
+                
+                details_data.append([marker, param_name, value, description])
             
             # 2. Остальные параметры из проекта (кроме ScriptName)
             for param, value in sorted(project_params.items()):
@@ -370,7 +413,12 @@ class CyberpunkGUI:
                 if param in base_params and base_params[param] != value:
                     value = f"{value} (в {base_env_name} = {base_params[param]})"
                 description = self._get_param_description(param, script_name)
-                details_data.append([param, value, description])
+                
+                # Определяем маркер категории
+                category = self._get_param_category(param, script_name)
+                marker = self._get_category_marker(category)
+                
+                details_data.append([marker, param, value, description])
             
             # 3. Параметры только из базового файла (не переопределенные)
             if base_env_name:
@@ -378,12 +426,35 @@ class CyberpunkGUI:
                     if param not in project_params:
                         param_with_source = f"{param} ({base_env_name})"
                         description = self._get_param_description(param, script_name)
-                        details_data.append([param_with_source, value, description])
+                        
+                        # Определяем маркер категории
+                        category = self._get_param_category(param, script_name)
+                        marker = self._get_category_marker(category)
+                        
+                        details_data.append([marker, param_with_source, value, description])
             
         except Exception as e:
-            details_data.append(['Ошибка', f'Не удалось прочитать файлы: {e}', ''])
+            details_data.append(['', 'Ошибка', f'Не удалось прочитать файлы: {e}', ''])
         
         _ = self.details_table.update(values=details_data)  # type: ignore[attr-defined]
+    
+    def _get_category_marker(self, category: str) -> str:
+        """
+        Возвращает маркер для категории параметра
+        
+        Args:
+            category: 'common', 'special' или 'not_described'
+            
+        Returns:
+            str: 'S' для special, 'N' для not_described, '' для common
+        """
+        if category == 'special':
+            # Используем цветной квадрат + S для визуального выделения
+            return 'S'
+        elif category == 'not_described':
+            return 'N'
+        else:  # common
+            return ''
     
     def handle_events(self) -> None:
         """Обработка событий"""
