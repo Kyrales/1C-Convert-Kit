@@ -156,7 +156,7 @@ class V8ToolWrapper(ToolWrapper):
             'CREATEINFOBASE',
             ib_connection,
             '/DisableStartupDialogs',
-            f'/Out{log_file}'
+            f'/Out {log_file}'
         ]
         
         # Выводим команду в режиме отладки
@@ -228,8 +228,8 @@ class V8ToolWrapper(ToolWrapper):
             'DESIGNER',
             '/IBConnectionString', ib_conn_string,
             '/DisableStartupDialogs',
-            f'/Out{log_file}',
-            f'/LoadConfigFromFiles{xml_path}'
+            f'/Out {log_file}',
+            f'/LoadConfigFromFiles {xml_path}'
         ]
         
         if extension_name:
@@ -312,8 +312,8 @@ class V8ToolWrapper(ToolWrapper):
             'DESIGNER',
             '/IBConnectionString', ib_conn_string,
             '/DisableStartupDialogs',
-            f'/Out{log_file}',
-            f'/DumpCfg{output_file}'
+            f'/Out {log_file}',
+            f'/DumpCfg {output_file}'
         ]
         
         if extension_name:
@@ -404,9 +404,8 @@ class V8ToolWrapper(ToolWrapper):
             'DESIGNER',
             '/IBConnectionString', ib_conn_string,
             '/DisableStartupDialogs',
-            f'/Out{log_file}',
-            f'/LoadExternalDataProcessorOrReportFromFiles',
-            str(xml_file),
+            f'/Out {log_file}',
+            f'/LoadExternalDataProcessorOrReportFromFiles {xml_file}',
             str(output_dir)
         ]
         

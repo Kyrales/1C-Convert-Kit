@@ -572,3 +572,207 @@ class TestConversionIntegration:
 if __name__ == '__main__':
     # Запуск тестов с подробным выводом
     pytest.main([__file__, '-v', '-s'])
+
+    def test_demo_edt_cf_debug_commands(self):
+        """
+        Тест проверки выполнения команд из лога отладки для проекта Демо_edt_в_cf
+        
+        Проверяет:
+        - Успешное выполнение конвертации в режиме отладки
+        - Извлечение команд из лога
+        - Поэтапное выполнение каждой команды вручную
+        - Успешность выполнения каждой команды
+        - Создание итогового CF файла
+        """
+        import subprocess
+        import re
+        import tempfile
+        
+        # Arrange: подготовка путей
+        demo_project_env = project_root / 'projects' / 'Демо_edt_в_cf' / 'Демо_edt_в_cf_conf2cf.env'
+        
+        # Проверяем наличие проекта
+        assert demo_project_env.exists(), f"Проект Демо_edt_в_cf не найден: {demo_project_env}"
+        
+        # Создаем временный файл для лога
+        with tempfile.NamedTemporaryFile(mode='w+', suffix='.log', delete=False, encoding='utf-8') as log_file:
+            log_path = Path(log_file.name)
+        
+        try:
+            # Act 1: Запускаем конвертацию в режиме отладки
+            print(f"\n[ЭТАП 1] Запуск конвертации в режиме отладки...")
+            
+            convert_script = project_root / 'src' / 'core' / 'convert.py'
+            cmd = [
+                sys.executable,
+                str(convert_script),
+                '--env', str(demo_project_env),
+                '--debug'
+            ]
+            
+            # Запускаем процесс и сохраняем вывод
+            process = subprocess.Popen(
+                cmd,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                cwd=str(project_root)
+            )
+            
+            # Читаем вывод и сохраняем в файл
+            output_lines = []
+            for line in iter(process.stdout.readline, b''):
+                if not line:
+                    break
+                
+                # Декодируем с обработкой разных кодировок
+                decoded_line = None
+                for encoding in ['utf-8', 'cp1251', 'cp866']:
+                    try:
+                        decoded_line = line.decode(encoding)
+                        break
+                    except (UnicodeDecodeError, AttributeError):
+                        continue
+                
+                if decoded_line is None:
+                    decoded_line = line.decode('utf-8', errors='replace')
+                
+                output_lines.append(decoded_line)
+                log_file.write(decoded_line)
+            
+            exit_code = process.wait()
+            log_file.flush()
+            
+            # Assert 1: Проверяем успешность конвертации
+            assert exit_code == 0, f"Конвертация завершилась с ошибкой (код: {exit_code})"
+            print(f"[OK] Конвертация завершена успешно (код: {exit_code})")
+            
+            # Act 2: Извлекаем команды из лога
+            print(f"\n[ЭТАП 2] Извлечение команд из лога...")
+            
+            # Читаем лог-файл
+            with open(log_path, 'r', encoding='utf-8', errors='replace') as f:
+                log_content = f.read()
+            
+            # Ищем строки с командами (паттерн: [ОТЛАДКА] Команда: ...)
+            # Убираем ANSI escape коды
+            ansi_escape = re.compile(r'\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])')
+            log_content_clean = ansi_escape.sub('', log_content)
+            
+            # Извлекаем команды
+            command_pattern = r'\[ОТЛАДКА\]\s+Команда:\s+(.+?)(?:\n|$)'
+            commands = re.findall(command_pattern, log_content_clean, re.MULTILINE)
+            
+            # Assert 2: Проверяем что команды найдены
+            assert len(commands) > 0, "Команды не найдены в логе отладки"
+            print(f"[OK] Найдено команд: {len(commands)}")
+            
+            # Выводим найденные команды
+            for i, cmd_str in enumerate(commands, 1):
+                print(f"\n[КОМАНДА {i}] {cmd_str[:100]}...")
+            
+            # Act 3: Выполняем каждую команду поэтапно
+            print(f"\n[ЭТАП 3] Поэтапное выполнение команд...")
+            
+            executed_commands = []
+            failed_commands = []
+            
+            for i, cmd_str in enumerate(commands, 1):
+                print(f"\n[ВЫПОЛНЕНИЕ {i}/{len(commands)}]")
+                print(f"Команда: {cmd_str[:80]}...")
+                
+                try:
+                    # Парсим команду (разбиваем на аргументы с учетом кавычек)
+                    import shlex
+                    cmd_args = shlex.split(cmd_str)
+                    
+                    # Выполняем команду
+                    result = subprocess.run(
+                        cmd_args,
+                        capture_output=True,
+                        text=True,
+                        encoding='cp1251',
+                        errors='replace',
+                        timeout=300  # 5 минут таймаут
+                    )
+                    
+                    # Проверяем результат
+                    if result.returncode == 0:
+                        print(f"[OK] Команда выполнена успешно (код: {result.returncode})")
+                        executed_commands.append({
+                            'index': i,
+                            'command': cmd_str,
+                            'returncode': result.returncode,
+                            'success': True
+                        })
+                    else:
+                        print(f"[ОШИБКА] Команда завершилась с ошибкой (код: {result.returncode})")
+                        if result.stderr:
+                            print(f"Stderr: {result.stderr[:200]}")
+                        failed_commands.append({
+                            'index': i,
+                            'command': cmd_str,
+                            'returncode': result.returncode,
+                            'stderr': result.stderr,
+                            'success': False
+                        })
+                
+                except subprocess.TimeoutExpired:
+                    print(f"[ОШИБКА] Команда превысила таймаут (300 сек)")
+                    failed_commands.append({
+                        'index': i,
+                        'command': cmd_str,
+                        'error': 'Timeout',
+                        'success': False
+                    })
+                
+                except Exception as e:
+                    print(f"[ОШИБКА] Исключение при выполнении команды: {e}")
+                    failed_commands.append({
+                        'index': i,
+                        'command': cmd_str,
+                        'error': str(e),
+                        'success': False
+                    })
+            
+            # Assert 3: Проверяем что все команды выполнены успешно
+            print(f"\n[ИТОГИ]")
+            print(f"Всего команд: {len(commands)}")
+            print(f"Успешно выполнено: {len(executed_commands)}")
+            print(f"Завершились с ошибкой: {len(failed_commands)}")
+            
+            if failed_commands:
+                print(f"\n[ОШИБКИ]")
+                for cmd_info in failed_commands:
+                    print(f"  Команда {cmd_info['index']}: {cmd_info['command'][:60]}...")
+                    if 'returncode' in cmd_info:
+                        print(f"    Код возврата: {cmd_info['returncode']}")
+                    if 'error' in cmd_info:
+                        print(f"    Ошибка: {cmd_info['error']}")
+            
+            # Проверяем что нет ошибок
+            assert len(failed_commands) == 0, \
+                f"Некоторые команды завершились с ошибкой: {len(failed_commands)} из {len(commands)}"
+            
+            # Act 4: Проверяем создание итогового файла
+            print(f"\n[ЭТАП 4] Проверка создания итогового CF файла...")
+            
+            # Читаем путь к выходному файлу из .env
+            env_vars = load_env_file(str(demo_project_env), silent=True)
+            output_file = Path(env_vars['V8_DST_PATH'])
+            
+            # Assert 4: Проверяем что файл создан
+            assert output_file.exists(), f"Выходной CF файл не создан: {output_file}"
+            
+            file_size = output_file.stat().st_size
+            assert file_size > 0, "Выходной файл пустой"
+            assert file_size > 1024 * 1024, f"Выходной файл слишком маленький: {file_size} байт"
+            
+            print(f"[OK] CF файл создан: {output_file.name}")
+            print(f"[OK] Размер файла: {file_size / (1024 * 1024):.2f} МБ")
+            
+            print(f"\n[УСПЕХ] Все команды выполнены успешно!")
+        
+        finally:
+            # Cleanup: удаляем временный лог-файл
+            if log_path.exists():
+                log_path.unlink()

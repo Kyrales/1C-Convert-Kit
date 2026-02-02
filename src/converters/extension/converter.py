@@ -692,8 +692,8 @@ class ExtensionConverter(BaseConverter):
                 'DESIGNER',
                 '/IBConnectionString', ib_conn_str,
                 '/DisableStartupDialogs',
-                f'/Out{load_log_file}',
-                f'/LoadCfg{cfe_file}',
+                f'/Out {load_log_file}',
+                f'/LoadCfg {cfe_file}',
                 '-Extension', self.ext_name
             ]
             
@@ -733,8 +733,8 @@ class ExtensionConverter(BaseConverter):
                     'DESIGNER',
                     '/IBConnectionString', ib_conn_str,
                     '/DisableStartupDialogs',
-                    f'/Out{dump_log_file}',
-                    f'/DumpConfigToFiles{output_dir}',
+                    f'/Out {dump_log_file}',
+                    f'/DumpConfigToFiles {output_dir}',
                     '-Extension', self.ext_name
                 ]
                 
@@ -782,8 +782,8 @@ class ExtensionConverter(BaseConverter):
                     'DESIGNER',
                     '/IBConnectionString', ib_conn_str,
                     '/DisableStartupDialogs',
-                    f'/Out{dump_log_file}',
-                    f'/DumpConfigToFiles{temp_xml}',
+                    f'/Out {dump_log_file}',
+                    f'/DumpConfigToFiles {temp_xml}',
                     '-Extension', self.ext_name
                 ]
                 
