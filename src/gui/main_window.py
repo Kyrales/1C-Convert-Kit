@@ -4,19 +4,24 @@
 Главное окно GUI приложения
 """
 
-import sys
+from __future__ import annotations
+
 import threading
 import shutil
 from pathlib import Path
 from datetime import datetime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .project_scanner import ProjectDict
 
 try:
-    import FreeSimpleGUI as sg
+    import FreeSimpleGUI as sg  # type: ignore
 except ImportError:
-    import PySimpleGUI as sg
+    import PySimpleGUI as sg  # type: ignore
 
 from ..core.convert import load_env_file
-from .constants import VERSION, COLORS, SCRIPT_DIR, PROJECTS_DIR, CONVERT_SCRIPT, PARAMS_DESC_FILE
+from .constants import VERSION, COLORS, SCRIPT_DIR, PROJECTS_DIR, PARAMS_DESC_FILE
 from .project_scanner import ProjectScanner
 from .project_editor import ProjectEditorDialog
 from .conversion_runner import ConversionRunner
@@ -25,13 +30,13 @@ from .conversion_runner import ConversionRunner
 class CyberpunkGUI:
     """Главный класс графического интерфейса"""
     
-    def __init__(self):
-        self.projects = []
-        self.selected_row = None
-        self.runner = None
-        self.conversion_thread = None
-        self.params_descriptions = self._load_params_descriptions()
-        self.debug_mode = False  # Режим отладки
+    def __init__(self) -> None:
+        self.projects: "list[ProjectDict]" = []
+        self.selected_row: int | None = None
+        self.runner: ConversionRunner | None = None
+        self.conversion_thread: threading.Thread | None = None
+        self.params_descriptions: dict[str, dict[str, str]] | None = self._load_params_descriptions()
+        self.debug_mode: bool = False  # Режим отладки
         
         # Настраиваем тему
         self._setup_theme()
@@ -41,7 +46,7 @@ class CyberpunkGUI:
         
         # Создаем окно
         icon_path = SCRIPT_DIR / 'docs' / 'images' / 'icons8-cyberpunk-gradient-16.ico'
-        self.window = sg.Window(
+        self.window = sg.Window(  # type: ignore[attr-defined, assignment]
             f'1C-Convert-Kit - Cyberpunk Edition | Версия {VERSION}',
             self.create_layout(),
             size=(1600, 750),
@@ -53,35 +58,40 @@ class CyberpunkGUI:
         )
         
         # Настраиваем таблицу
-        self.table = self.window['-TABLE-']
-        self.details_table = self.window['-DETAILS_TABLE-']
-        self.log_output = self.window['-LOG-']
+        self.table = self.window['-TABLE-']  # type: ignore[index]
+        self.details_table = self.window['-DETAILS_TABLE-']  # type: ignore[index]
+        self.log_output = self.window['-LOG-']  # type: ignore[index]
+        
+        # Проверяем, что элементы инициализированы
+        assert self.table is not None, "Table element not found"
+        assert self.details_table is not None, "Details table element not found"
+        assert self.log_output is not None, "Log output element not found"
         
         # Обновляем таблицу
         self.update_table()
     
-    def _load_params_descriptions(self):
+    def _load_params_descriptions(self) -> dict[str, dict[str, str]] | None:
         """Загружает описания параметров из JSON файла"""
         try:
             if PARAMS_DESC_FILE.exists():
                 import json
                 with open(PARAMS_DESC_FILE, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
+                    data: dict[str, dict[str, str]] = json.load(f)
                     return data
         except Exception:
             pass
         return None
     
-    def _setup_theme(self):
+    def _setup_theme(self) -> None:
         """Настройка Cyberpunk темы"""
         # Используем встроенную темную тему как основу
-        sg.theme('DarkBlack')
+        _ = sg.theme('DarkBlack')  # type: ignore[attr-defined]
     
-    def scan_projects(self):
+    def scan_projects(self) -> None:
         """Сканирует проекты"""
         self.projects = ProjectScanner.scan_projects()
     
-    def create_layout(self):
+    def create_layout(self) -> "list[list[object]]":
         """Создает layout интерфейса"""
         
         # Вкладка "Проекты"
@@ -251,11 +261,11 @@ class CyberpunkGUI:
             ]
         ]
         
-        return layout
+        return layout  # type: ignore[return-value]
     
-    def update_table(self):
+    def update_table(self) -> None:
         """Обновляет данные в таблице"""
-        table_data = []
+        table_data: list[list[str]] = []
         for idx, project in enumerate(self.projects):
             check = '✓' if project['selected'] else ''
             # Добавляем стрелку для текущей выбранной строки
@@ -264,18 +274,18 @@ class CyberpunkGUI:
             dst = project['custom_dst_path'] or project['dst_path']
             table_data.append([check, name, project['script'], dst])
         
-        self.table.update(values=table_data)
+        _ = self.table.update(values=table_data)  # type: ignore[attr-defined]
         
         # Обновляем таблицу деталей
         self.update_details_table()
     
-    def _get_param_description(self, param_name, script_name):
+    def _get_param_description(self, param_name: str, script_name: str) -> str:
         """
         Получает описание параметра из JSON
         
         Args:
             param_name: имя параметра (без источника в скобках)
-            script_name: имя скрипта (например: conf2cf или conf2cf.cmd)
+            script_name: имя скрипта (например: conf2cf)
             
         Returns:
             str: описание параметра или пустая строка
@@ -283,13 +293,16 @@ class CyberpunkGUI:
         if not self.params_descriptions:
             return ''
         
-        # Нормализуем имя скрипта - добавляем .cmd если нет
-        script_key = script_name if script_name.endswith('.cmd') else f"{script_name}.cmd"
+        # Сначала ищем в специфичных для скрипта (без .cmd)
+        if script_name in self.params_descriptions:
+            if param_name in self.params_descriptions[script_name]:
+                return self.params_descriptions[script_name][param_name]
         
-        # Сначала ищем в специфичных для скрипта
-        if script_key in self.params_descriptions:
-            if param_name in self.params_descriptions[script_key]:
-                return self.params_descriptions[script_key][param_name]
+        # Пробуем с .cmd для обратной совместимости
+        script_key_with_cmd = f"{script_name}.cmd"
+        if script_key_with_cmd in self.params_descriptions:
+            if param_name in self.params_descriptions[script_key_with_cmd]:
+                return self.params_descriptions[script_key_with_cmd][param_name]
         
         # Затем ищем в общих
         if 'common' in self.params_descriptions:
@@ -298,17 +311,17 @@ class CyberpunkGUI:
         
         return ''
     
-    def update_details_table(self):
+    def update_details_table(self) -> None:
         """Обновляет таблицу деталей выбранного проекта с объединением базового .env"""
         if self.selected_row is None or self.selected_row >= len(self.projects):
-            self.details_table.update(values=[])
+            _ = self.details_table.update(values=[])  # type: ignore[attr-defined]
             return
         
         project = self.projects[self.selected_row]
-        project_env_path = project['env_path']
-        script_name = project.get('script', '')
+        project_env_path: str = project['env_path']
+        script_name: str = project.get('script', '')
         
-        details_data = []
+        details_data: list[list[str]] = []
         
         try:
             # Собираем список .env файлов как в convert.py
@@ -338,8 +351,6 @@ class CyberpunkGUI:
                         base_params = env_vars.copy()
                     else:
                         project_params = env_vars.copy()
-            
-            project_env_name = Path(project_env_path).name
             
             # 1. ScriptName всегда первым
             if 'ScriptName' in project_params:
@@ -372,14 +383,14 @@ class CyberpunkGUI:
         except Exception as e:
             details_data.append(['Ошибка', f'Не удалось прочитать файлы: {e}', ''])
         
-        self.details_table.update(values=details_data)
+        _ = self.details_table.update(values=details_data)  # type: ignore[attr-defined]
     
-    def handle_events(self):
+    def handle_events(self) -> None:
         """Обработка событий"""
         while True:
-            event, values = self.window.read()
+            event, values = self.window.read()  # type: ignore[attr-defined, misc, union-attr]
             
-            if event == sg.WIN_CLOSED:
+            if event == sg.WIN_CLOSED:  # type: ignore[attr-defined]
                 break
             
             # F5 - Выполнить
@@ -388,19 +399,21 @@ class CyberpunkGUI:
             
             # Чекбокс отладки
             elif event == '-DEBUG-':
-                self.debug_mode = values['-DEBUG-']
+                self.debug_mode = values['-DEBUG-']  # type: ignore[index]
                 status = "включен" if self.debug_mode else "выключен"
-                self.log_output.print(f'ℹ Режим отладки {status}\n', 
+                _ = self.log_output.print(f'ℹ Режим отладки {status}\n',  # type: ignore[attr-defined, union-attr]
                                      text_color=COLORS['primary'], 
                                      end='')
             
             # Выбор строки в таблице
             elif event == '-TABLE-':
-                if values['-TABLE-']:
-                    self.selected_row = values['-TABLE-'][0]
-                    # Переключаем чекбокс
-                    self.projects[self.selected_row]['selected'] = \
-                        not self.projects[self.selected_row]['selected']
+                if values['-TABLE-']:  # type: ignore[index]
+                    clicked_row = values['-TABLE-'][0]  # type: ignore[index]
+                    # Переключаем чекбокс для кликнутой строки
+                    self.projects[clicked_row]['selected'] = \
+                        not self.projects[clicked_row]['selected']
+                    # Обновляем выбранную строку
+                    self.selected_row = clicked_row
                     self.update_table()
             
             # Добавить проект
@@ -448,7 +461,7 @@ class CyberpunkGUI:
                 self.scan_projects()
                 self.selected_row = None
                 self.update_table()
-                self.log_output.print('✓ Проекты обновлены\n', 
+                _ = self.log_output.print('✓ Проекты обновлены\n',  # type: ignore[attr-defined, union-attr]
                                      text_color=COLORS['success'], 
                                      end='')
             
@@ -458,7 +471,7 @@ class CyberpunkGUI:
             
             # Очистить лог
             elif event == '-CLEAR_LOG-' or event == 'Очистить':
-                self.log_output.update('')
+                _ = self.log_output.update(value='')  # type: ignore[attr-defined]
             
             # Сохранить лог
             elif event == '-SAVE_LOG-':
@@ -468,61 +481,67 @@ class CyberpunkGUI:
             elif event == 'Копировать':
                 try:
                     # Получаем выделенный текст
-                    selected_text = self.log_output.Widget.selection_get()
+                    selected_text = self.log_output.Widget.selection_get()  # type: ignore[attr-defined, union-attr]
                     if selected_text:
-                        self.window.TKroot.clipboard_clear()
-                        self.window.TKroot.clipboard_append(selected_text)
-                except:
+                        _ = self.window.TKroot.clipboard_clear()  # type: ignore[attr-defined, union-attr]
+                        _ = self.window.TKroot.clipboard_append(selected_text)  # type: ignore[attr-defined, union-attr]
+                except Exception:
                     # Если ничего не выделено, копируем весь текст
-                    all_text = self.log_output.get()
-                    if all_text:
-                        self.window.TKroot.clipboard_clear()
-                        self.window.TKroot.clipboard_append(all_text)
+                    try:
+                        all_text = self.log_output.get()  # type: ignore[attr-defined, union-attr]
+                        if all_text:
+                            _ = self.window.TKroot.clipboard_clear()  # type: ignore[attr-defined, union-attr]
+                            _ = self.window.TKroot.clipboard_append(all_text)  # type: ignore[attr-defined, union-attr]
+                    except Exception:
+                        pass
             
             # Выделить все (из контекстного меню)
             elif event == 'Выделить все':
                 try:
-                    self.log_output.Widget.tag_add('sel', '1.0', 'end')
-                except:
+                    self.log_output.Widget.tag_add('sel', '1.0', 'end')  # type: ignore[attr-defined]
+                except Exception:
                     pass
             
             # Обновление статуса
             elif event == '-UPDATE_STATUS-':
-                completed, total, percent, status = values[event]
-                self.window['-PROGRESS_TEXT-'].update(
-                    f'Выполнено: {completed} из {total} проектов ({percent}%)')
-                self.window['-PROGRESS_BAR-'].update(percent)
+                completed, total, percent, status = values[event]  # type: ignore[misc]
+                _ = self.window['-PROGRESS_TEXT-'].update(  # type: ignore[index, attr-defined]
+                    value=f'Выполнено: {completed} из {total} проектов ({percent}%)')
+                _ = self.window['-PROGRESS_BAR-'].update(current_count=percent)  # type: ignore[index, attr-defined]
                 # Цветной вывод статуса
-                self.log_output.print(f'ℹ {status}\n', text_color=COLORS['primary'], end='')
+                _ = self.log_output.print(f'ℹ {status}\n', text_color=COLORS['primary'], end='')  # type: ignore[attr-defined, union-attr]
             
             # Завершение конвертации
             elif event == '-CONVERSION_DONE-':
-                completed, total, percent, total_duration_str = values[event]
-                self.window['-PROGRESS_TEXT-'].update(
-                    f'Готово! Выполнено: {completed} из {total} ({percent}%). Общее время: {total_duration_str}')
-                self.window['-PROGRESS_BAR-'].update(100)
+                completed, total, percent, total_duration_str = values[event]  # type: ignore[misc]
+                _ = self.window['-PROGRESS_TEXT-'].update(  # type: ignore[index, attr-defined]
+                    value=f'Готово! Выполнено: {completed} из {total} ({percent}%). Общее время: {total_duration_str}')
+                _ = self.window['-PROGRESS_BAR-'].update(current_count=100)  # type: ignore[index, attr-defined]
             
             # Лог с цветом
             elif event == '-LOG-':
-                log_data = values[event]
+                log_data = values[event]  # type: ignore[index]
                 if isinstance(log_data, dict):
                     # Новый формат с цветом
-                    self.log_output.print(log_data['text'], 
-                                         text_color=log_data['color'], 
+                    _ = self.log_output.print(log_data['text'],  # type: ignore[attr-defined, union-attr, index]
+                                         text_color=log_data['color'],  # type: ignore[index]
                                          end='')
                 else:
                     # Старый формат (обратная совместимость)
-                    self.log_output.update(log_data, append=True)
+                    _ = self.log_output.update(value=log_data, append=True)  # type: ignore[attr-defined]
         
         # Останавливаем конвертацию если запущена
         if self.runner:
             self.runner.stop()
         
-        self.window.close()
+        _ = self.window.close()  # type: ignore[attr-defined]
     
-    def _move_row(self, direction):
+    def _move_row(self, direction: int) -> None:
         """Перемещает выбранную строку вверх или вниз"""
         if self.selected_row is None:
+            _ = sg.popup('Выберите проект в таблице',  # type: ignore[attr-defined]
+                    background_color=COLORS['bg'],
+                    text_color=COLORS['warning'])
             return
         
         new_idx = self.selected_row + direction
@@ -535,10 +554,10 @@ class CyberpunkGUI:
             self.selected_row = new_idx
             self.update_table()
     
-    def _change_path(self):
+    def _change_path(self) -> None:
         """Изменяет путь выгрузки для выбранного проекта"""
         if self.selected_row is None:
-            sg.popup('Выберите проект в таблице', 
+            _ = sg.popup('Выберите проект в таблице',  # type: ignore[attr-defined]
                     background_color=COLORS['bg'],
                     text_color=COLORS['warning'])
             return
@@ -550,7 +569,7 @@ class CyberpunkGUI:
         
         if '2cf' in script_lower or '2cfe' in script_lower:
             # Выбор файла
-            new_path = sg.popup_get_file(
+            new_path = sg.popup_get_file(  # type: ignore[attr-defined]
                 'Выберите файл для сохранения',
                 save_as=True,
                 file_types=(('CF Files', '*.cf'), ('CFE Files', '*.cfe'), ('All Files', '*.*')),
@@ -559,7 +578,7 @@ class CyberpunkGUI:
             )
         else:
             # Выбор папки
-            new_path = sg.popup_get_folder(
+            new_path = sg.popup_get_folder(  # type: ignore[attr-defined]
                 'Выберите папку для сохранения',
                 background_color=COLORS['bg'],
                 text_color=COLORS['text']
@@ -568,27 +587,29 @@ class CyberpunkGUI:
         if new_path:
             project['custom_dst_path'] = new_path
             self.update_table()
+            _ = self.log_output.print(f'ℹ Путь выгрузки изменен для проекта "{project["name"]}"\n',  # type: ignore[attr-defined, union-attr]
+                                 text_color=COLORS['primary'], end='')
     
-    def _execute_conversion(self):
+    def _execute_conversion(self) -> None:
         """Запускает конвертацию выбранных проектов"""
         # Получаем выбранные проекты
         selected = [p for p in self.projects if p['selected']]
         
         if not selected:
-            sg.popup('Выберите хотя бы один проект', 
+            _ = sg.popup('Выберите хотя бы один проект',  # type: ignore[attr-defined]
                     background_color=COLORS['bg'],
                     text_color=COLORS['warning'])
             return
         
         # Переключаемся на вкладку лога
-        self.window['-TABS-'].Widget.select(1)
+        _ = self.window['-TABS-'].Widget.select(1)  # type: ignore[index, attr-defined, union-attr]
         
         # Очищаем лог
-        self.log_output.update('')
+        _ = self.log_output.update(value='')  # type: ignore[attr-defined]
         
         # Сбрасываем прогресс
-        self.window['-PROGRESS_BAR-'].update(0)
-        self.window['-PROGRESS_TEXT-'].update('Запуск конвертации...')
+        _ = self.window['-PROGRESS_BAR-'].update(current_count=0)  # type: ignore[index, attr-defined]
+        _ = self.window['-PROGRESS_TEXT-'].update(value='Запуск конвертации...')  # type: ignore[index, attr-defined]
         
         # Запускаем в отдельном потоке
         self.runner = ConversionRunner(self.window)
@@ -599,7 +620,7 @@ class CyberpunkGUI:
         )
         self.conversion_thread.start()
     
-    def _add_project(self):
+    def _add_project(self) -> None:
         """Добавляет новый проект"""
         existing_names = [p['name'] for p in self.projects]
         
@@ -613,17 +634,21 @@ class CyberpunkGUI:
         
         if result:
             # Создаем папку проекта
-            project_name = result['name']
+            project_name = str(result['name'])
             project_folder = PROJECTS_DIR / project_name
             
             try:
                 project_folder.mkdir(parents=True, exist_ok=False)
                 
                 # Создаем .env файл
-                env_filename = f"{self._sanitize_filename(project_name)}_{result['script']}.env"
+                script_name = str(result['script'])
+                env_filename = f"{self._sanitize_filename(project_name)}_{script_name}.env"
                 env_path = project_folder / env_filename
                 
-                self._save_env_file(env_path, result['params'])
+                params = result['params']
+                if isinstance(params, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in params.items()):
+                    # Type narrowing: params is dict[str, str]
+                    self._save_env_file(env_path, params)  # type: ignore[arg-type]
                 
                 # Обновляем список проектов
                 self.scan_projects()
@@ -636,18 +661,18 @@ class CyberpunkGUI:
                 
                 self.update_table()
                 
-                self.log_output.print(f'✓ Проект "{project_name}" успешно создан\n', 
+                _ = self.log_output.print(f'✓ Проект "{project_name}" успешно создан\n',  # type: ignore[attr-defined, union-attr]
                                      text_color=COLORS['success'], end='')
             
             except Exception as e:
-                sg.popup_error(f'Ошибка создания проекта: {e}',
+                _ = sg.popup_error(f'Ошибка создания проекта: {e}',  # type: ignore[attr-defined]
                               background_color=COLORS['bg'],
                               text_color=COLORS['error'])
     
-    def _edit_project(self):
+    def _edit_project(self) -> None:
         """Изменяет существующий проект"""
         if self.selected_row is None:
-            sg.popup('Выберите проект для изменения',
+            _ = sg.popup('Выберите проект для изменения',  # type: ignore[attr-defined]
                     background_color=COLORS['bg'],
                     text_color=COLORS['warning'])
             return
@@ -658,7 +683,7 @@ class CyberpunkGUI:
         dialog = ProjectEditorDialog(
             self.params_descriptions,
             mode='edit',
-            project_data=project,
+            project_data=project,  # type: ignore[arg-type]
             existing_projects=existing_names
         )
         
@@ -666,16 +691,16 @@ class CyberpunkGUI:
         
         if result:
             try:
-                original_name = result['original_name']
-                new_name = result['name']
-                new_script = result['script']
+                original_name = str(result.get('original_name', ''))
+                new_name = str(result['name'])
+                new_script = str(result['script'])
                 
                 original_folder = PROJECTS_DIR / original_name
                 new_folder = PROJECTS_DIR / new_name
                 
                 # Если имя изменилось, переименовываем папку
                 if original_name != new_name:
-                    original_folder.rename(new_folder)
+                    _ = original_folder.rename(new_folder)
                 
                 # Удаляем старый .env файл
                 old_env_files = list(new_folder.glob('*.env'))
@@ -686,7 +711,10 @@ class CyberpunkGUI:
                 env_filename = f"{self._sanitize_filename(new_name)}_{new_script}.env"
                 env_path = new_folder / env_filename
                 
-                self._save_env_file(env_path, result['params'])
+                params = result['params']
+                if isinstance(params, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in params.items()):
+                    # Type narrowing: params is dict[str, str]
+                    self._save_env_file(env_path, params)  # type: ignore[arg-type]
                 
                 # Обновляем список проектов
                 self.scan_projects()
@@ -699,18 +727,18 @@ class CyberpunkGUI:
                 
                 self.update_table()
                 
-                self.log_output.print(f'✓ Проект "{new_name}" успешно изменен\n', 
+                _ = self.log_output.print(f'✓ Проект "{new_name}" успешно изменен\n',  # type: ignore[attr-defined, union-attr]
                                      text_color=COLORS['success'], end='')
             
             except Exception as e:
-                sg.popup_error(f'Ошибка изменения проекта: {e}',
+                _ = sg.popup_error(f'Ошибка изменения проекта: {e}',  # type: ignore[attr-defined]
                               background_color=COLORS['bg'],
                               text_color=COLORS['error'])
     
-    def _copy_project(self):
+    def _copy_project(self) -> None:
         """Копирует существующий проект"""
         if self.selected_row is None:
-            sg.popup('Выберите проект для копирования',
+            _ = sg.popup('Выберите проект для копирования',  # type: ignore[attr-defined]
                     background_color=COLORS['bg'],
                     text_color=COLORS['warning'])
             return
@@ -721,7 +749,7 @@ class CyberpunkGUI:
         dialog = ProjectEditorDialog(
             self.params_descriptions,
             mode='copy',
-            project_data=project,
+            project_data=project,  # type: ignore[arg-type]
             existing_projects=existing_names
         )
         
@@ -729,17 +757,21 @@ class CyberpunkGUI:
         
         if result:
             # Создаем папку проекта
-            project_name = result['name']
+            project_name = str(result['name'])
             project_folder = PROJECTS_DIR / project_name
             
             try:
                 project_folder.mkdir(parents=True, exist_ok=False)
                 
                 # Создаем .env файл
-                env_filename = f"{self._sanitize_filename(project_name)}_{result['script']}.env"
+                script_name = str(result['script'])
+                env_filename = f"{self._sanitize_filename(project_name)}_{script_name}.env"
                 env_path = project_folder / env_filename
                 
-                self._save_env_file(env_path, result['params'])
+                params = result['params']
+                if isinstance(params, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in params.items()):
+                    # Type narrowing: params is dict[str, str]
+                    self._save_env_file(env_path, params)  # type: ignore[arg-type]
                 
                 # Обновляем список проектов
                 self.scan_projects()
@@ -752,18 +784,18 @@ class CyberpunkGUI:
                 
                 self.update_table()
                 
-                self.log_output.print(f'✓ Проект "{project_name}" успешно скопирован\n', 
+                _ = self.log_output.print(f'✓ Проект "{project_name}" успешно скопирован\n',  # type: ignore[attr-defined, union-attr]
                                      text_color=COLORS['success'], end='')
             
             except Exception as e:
-                sg.popup_error(f'Ошибка копирования проекта: {e}',
+                _ = sg.popup_error(f'Ошибка копирования проекта: {e}',  # type: ignore[attr-defined]
                               background_color=COLORS['bg'],
                               text_color=COLORS['error'])
     
-    def _delete_project(self):
+    def _delete_project(self) -> None:
         """Удаляет проект"""
         if self.selected_row is None:
-            sg.popup('Выберите проект для удаления',
+            _ = sg.popup('Выберите проект для удаления',  # type: ignore[attr-defined]
                     background_color=COLORS['bg'],
                     text_color=COLORS['warning'])
             return
@@ -772,7 +804,7 @@ class CyberpunkGUI:
         project_name = project['name']
         
         # Подтверждение удаления
-        response = sg.popup_yes_no(
+        response = sg.popup_yes_no(  # type: ignore[attr-defined]
             f'Вы уверены, что хотите удалить проект "{project_name}"?',
             title='Подтверждение удаления',
             background_color=COLORS['bg'],
@@ -791,15 +823,15 @@ class CyberpunkGUI:
                 self.selected_row = None
                 self.update_table()
                 
-                self.log_output.print(f'✓ Проект "{project_name}" успешно удален\n', 
+                _ = self.log_output.print(f'✓ Проект "{project_name}" успешно удален\n',  # type: ignore[attr-defined, union-attr]
                                      text_color=COLORS['success'], end='')
             
             except Exception as e:
-                sg.popup_error(f'Ошибка удаления проекта: {e}',
+                _ = sg.popup_error(f'Ошибка удаления проекта: {e}',  # type: ignore[attr-defined]
                               background_color=COLORS['bg'],
                               text_color=COLORS['error'])
     
-    def _save_env_file(self, env_path, params):
+    def _save_env_file(self, env_path: Path, params: "dict[str, str]") -> None:
         """
         Сохраняет параметры в .env файл
         
@@ -810,7 +842,7 @@ class CyberpunkGUI:
         with open(env_path, 'w', encoding='utf-8') as f:
             # Сначала ScriptName
             if 'ScriptName' in params:
-                f.write(f'ScriptName={params["ScriptName"]}\n')
+                _ = f.write(f'ScriptName={params["ScriptName"]}\n')
             
             # Затем остальные параметры в алфавитном порядке
             for key in sorted(params.keys()):
@@ -819,13 +851,13 @@ class CyberpunkGUI:
                     # Экранируем значения с пробелами
                     if ' ' in value:
                         value = f'"{value}"'
-                    f.write(f'{key}={value}\n')
+                    _ = f.write(f'{key}={value}\n')
     
-    def _sanitize_filename(self, name):
+    def _sanitize_filename(self, name: str) -> str:
         """Заменяет пробелы на подчеркивания в имени файла"""
         return name.replace(' ', '_')
     
-    def _save_log(self):
+    def _save_log(self) -> None:
         """Сохраняет лог в файл"""
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         default_name = f'converter_log_{timestamp}.log'
@@ -834,7 +866,7 @@ class CyberpunkGUI:
         # Полный путь с каталогом logs
         default_path = str(logs_dir / default_name)
         
-        file_path = sg.popup_get_file(
+        file_path = sg.popup_get_file(  # type: ignore[attr-defined]
             'Сохранить лог',
             save_as=True,
             default_extension='.log',
@@ -847,16 +879,17 @@ class CyberpunkGUI:
         if file_path:
             try:
                 # Создаем папку logs если не существует (только при сохранении)
-                file_dir = Path(file_path).parent
+                from pathlib import Path as PathType
+                file_dir = PathType(file_path).parent
                 file_dir.mkdir(parents=True, exist_ok=True)
                 
                 # Сохраняем в UTF-8 для корректного отображения
                 with open(file_path, 'w', encoding='utf-8') as f:
-                    f.write(self.log_output.get())
-                sg.popup(f'Лог сохранен: {file_path}', 
+                    _ = f.write(self.log_output.get())  # type: ignore[attr-defined]
+                _ = sg.popup(f'Лог сохранен: {file_path}',  # type: ignore[attr-defined]
                         background_color=COLORS['bg'],
                         text_color=COLORS['success'])
             except Exception as e:
-                sg.popup(f'Ошибка сохранения: {e}', 
+                _ = sg.popup(f'Ошибка сохранения: {e}',  # type: ignore[attr-defined]
                         background_color=COLORS['bg'],
                         text_color=COLORS['error'])

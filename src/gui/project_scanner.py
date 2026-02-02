@@ -4,21 +4,36 @@
 Сканирование и загрузка информации о проектах
 """
 
+from __future__ import annotations
+
+from typing import TypedDict
+from pathlib import Path
+
 from .constants import PROJECTS_DIR
+
+
+class ProjectDict(TypedDict):
+    """Структура данных проекта"""
+    name: str
+    script: str
+    env_path: str
+    dst_path: str
+    custom_dst_path: str | None
+    selected: bool
 
 
 class ProjectScanner:
     """Сканирование и загрузка информации о проектах"""
     
     @staticmethod
-    def scan_projects():
+    def scan_projects() -> list[ProjectDict]:
         """
         Сканирует папку projects и возвращает список проектов
         
         Returns:
             list: список словарей с информацией о проектах
         """
-        projects = []
+        projects: list[ProjectDict] = []
         
         if not PROJECTS_DIR.exists():
             return projects
@@ -48,7 +63,7 @@ class ProjectScanner:
                 continue
             
             # Создаем запись о проекте
-            project = {
+            project: ProjectDict = {
                 'name': item.name,
                 'script': script_name,
                 'env_path': str(env_file),
@@ -60,12 +75,12 @@ class ProjectScanner:
             projects.append(project)
         
         # Сортируем по имени
-        projects.sort(key=lambda x: x['name'])
+        projects.sort(key=lambda x: x['name'])  # type: ignore
         
         return projects
     
     @staticmethod
-    def _read_env_data(env_file):
+    def _read_env_data(env_file: Path) -> "tuple[str, str]":
         """
         Читает ScriptName и V8_DST_PATH из .env файла
         

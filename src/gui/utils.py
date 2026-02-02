@@ -5,7 +5,7 @@
 """
 
 
-def format_duration(seconds):
+def format_duration(seconds: float) -> str:
     """
     Форматирует длительность в читаемый вид
     

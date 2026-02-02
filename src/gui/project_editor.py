@@ -4,10 +4,17 @@
 Диалог редактирования проекта
 """
 
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .project_scanner import ProjectDict
+
 try:
-    import FreeSimpleGUI as sg
+    import FreeSimpleGUI as sg  # type: ignore
 except ImportError:
-    import PySimpleGUI as sg
+    import PySimpleGUI as sg  # type: ignore
 
 from ..core.convert import load_env_file
 from .constants import COLORS, PROJECTS_DIR
@@ -16,7 +23,13 @@ from .constants import COLORS, PROJECTS_DIR
 class ProjectEditorDialog:
     """Диалог добавления/изменения/копирования проекта"""
     
-    def __init__(self, params_descriptions, mode='add', project_data=None, existing_projects=None):
+    def __init__(
+        self, 
+        params_descriptions: "dict[str, dict[str, str]] | None",
+        mode: str = 'add', 
+        project_data: "dict[str, str] | ProjectDict | None" = None,
+        existing_projects: "list[str] | None" = None
+    ) -> None:
         """
         Args:
             params_descriptions: словарь с описаниями параметров из JSON
@@ -28,16 +41,16 @@ class ProjectEditorDialog:
         self.mode = mode
         self.project_data = project_data or {}
         self.existing_projects = existing_projects or []
-        self.result = None
-        self.window = None
+        self.result: "dict[str, str | dict[str, str]] | None" = None
+        self.window: object = None  # type: ignore[assignment]
         
         # Получаем список доступных скриптов
-        self.available_scripts = self._get_available_scripts()
+        self.available_scripts: "list[str]" = self._get_available_scripts()
         
         # Загружаем базовый .env если есть
-        self.base_env_params = self._load_base_env()
+        self.base_env_params: "dict[str, str]" = self._load_base_env()
     
-    def _get_available_scripts(self):
+    def _get_available_scripts(self) -> "list[str]":
         """Получает список доступных скриптов из params_descriptions"""
         if not self.params_descriptions:
             return []
@@ -49,7 +62,7 @@ class ProjectEditorDialog:
         
         return sorted(scripts)
     
-    def _load_base_env(self):
+    def _load_base_env(self) -> "dict[str, str]":
         """Загружает параметры из базового .env файла"""
         base_env_files = [f for f in PROJECTS_DIR.glob('*.env') if f.is_file()]
         if base_env_files:
@@ -60,7 +73,7 @@ class ProjectEditorDialog:
                 pass
         return {}
     
-    def _get_script_params(self, script_name):
+    def _get_script_params(self, script_name: str) -> "dict[str, dict[str, str | bool]]":
         """
         Получает список параметров для скрипта
         
@@ -93,7 +106,7 @@ class ProjectEditorDialog:
         
         return params
     
-    def _detect_param_type(self, param_name, description):
+    def _detect_param_type(self, param_name: str, description: str) -> str:
         """
         Определяет тип параметра
         
@@ -120,7 +133,7 @@ class ProjectEditorDialog:
         
         return 'text'
     
-    def _validate_project_name(self, name):
+    def _validate_project_name(self, name: str) -> "tuple[bool, str]":
         """
         Валидирует имя проекта
         
@@ -147,11 +160,11 @@ class ProjectEditorDialog:
         
         return True, ""
     
-    def _sanitize_filename(self, name):
+    def _sanitize_filename(self, name: str) -> str:
         """Заменяет пробелы на подчеркивания в имени файла"""
         return name.replace(' ', '_')
     
-    def _create_layout(self, script_name=None):
+    def _create_layout(self, script_name: str | None = None) -> "tuple[list[list[object]], str]":
         """Создает layout диалога"""
         # Заголовок окна
         if self.mode == 'add':
@@ -342,7 +355,7 @@ class ProjectEditorDialog:
         
         return layout, title
     
-    def _get_param_description(self, param_name, script_name):
+    def _get_param_description(self, param_name: str, script_name: str) -> str:
         """Получает описание параметра"""
         if not self.params_descriptions:
             return ''
@@ -359,7 +372,7 @@ class ProjectEditorDialog:
         
         return ''
     
-    def _update_params_visibility(self, window, script_name):
+    def _update_params_visibility(self, window: object, script_name: str) -> None:
         """Обновляет видимость и доступность полей при смене скрипта"""
         script_params = self._get_script_params(script_name)
         
@@ -369,26 +382,26 @@ class ProjectEditorDialog:
             value_key = f'-VAL_{param}-'
             browse_key = f'-BROWSE_{param}-'
             
-            if checkbox_key in window.AllKeysDict:
-                is_checked = window[checkbox_key].get()
-                is_required = info['required']
-                is_enabled = is_checked or is_required
+            if checkbox_key in window.AllKeysDict:  # type: ignore[attr-defined, union-attr]
+                is_checked: bool = bool(window[checkbox_key].get())  # type: ignore[index, attr-defined, union-attr]
+                is_required: bool = bool(info.get('required', False))
+                is_enabled: bool = is_checked or is_required
                 
                 # Определяем цвет фона
                 new_bg = COLORS['bg_secondary'] if is_enabled else COLORS['bg']
                 
                 # Обновляем доступность поля ввода и цвет фона
-                window[value_key].update(disabled=not is_enabled, background_color=new_bg)
+                _ = window[value_key].update(disabled=not is_enabled, background_color=new_bg)  # type: ignore[index, attr-defined, union-attr, call-overload]
                 
                 # Обновляем доступность кнопки browse если есть
-                if browse_key in window.AllKeysDict:
-                    window[browse_key].update(disabled=not is_enabled)
+                if browse_key in window.AllKeysDict:  # type: ignore[attr-defined, union-attr]
+                    _ = window[browse_key].update(disabled=not is_enabled)  # type: ignore[index, attr-defined, union-attr, call-overload]
     
-    def show(self):
+    def show(self) -> "dict[str, str | dict[str, str]] | None":
         """Показывает диалог и возвращает результат"""
         # Используем цикл для пересоздания окна при смене скрипта
-        current_script = None
-        saved_values = None
+        current_script: str | None = None
+        saved_values: "dict[str, str | dict[str, str]] | None" = None
         
         try:
             while True:
@@ -396,8 +409,12 @@ class ProjectEditorDialog:
                 
                 # Если результат - это запрос на смену скрипта
                 if isinstance(result, dict) and result.get('_action') == 'change_script':
-                    current_script = result.get('script')
-                    saved_values = result.get('values')
+                    script_value = result.get('script')
+                    if isinstance(script_value, str):
+                        current_script = script_value
+                    values_value = result.get('values')
+                    if isinstance(values_value, dict):
+                        saved_values = values_value  # type: ignore[assignment, type-var]
                     continue
                 
                 # Иначе возвращаем результат (None или данные проекта)
@@ -406,17 +423,17 @@ class ProjectEditorDialog:
         except Exception as e:
             import traceback
             traceback.print_exc()
-            sg.popup_error(f"Критическая ошибка в диалоге:\n{e}\n\nПодробности в консоли",
+            _ = sg.popup_error(f"Критическая ошибка в диалоге:\n{e}\n\nПодробности в консоли",
                           background_color=COLORS['bg'],
                           text_color=COLORS['error'])
             return None
     
-    def _show_window(self, script_name=None, saved_values=None):
+    def _show_window(self, script_name: str | None = None, saved_values: "dict[str, str | dict[str, str]] | None" = None) -> "dict[str, str | dict[str, str]] | None":
         """Внутренний метод для показа окна"""
         layout, title = self._create_layout(script_name=script_name)
         
         icon_path = PROJECTS_DIR.parent / 'docs' / 'images' / 'icons8-cyberpunk-gradient-16.ico'
-        self.window = sg.Window(
+        self.window = sg.Window(  # type: ignore[assignment, attr-defined]
             title,
             layout,
             size=(950, 800),
@@ -428,58 +445,64 @@ class ProjectEditorDialog:
         )
         
         # Включаем undo/redo для всех полей Input (включая Наименование)
-        for key in self.window.AllKeysDict:
+        for key in self.window.AllKeysDict:  # type: ignore[attr-defined, union-attr]
             if isinstance(key, str) and (key.startswith('-VAL_') or key == '-NAME-'):
-                element = self.window[key]
-                if hasattr(element, 'Widget') and hasattr(element.Widget, 'configure'):
+                element = self.window[key]  # type: ignore[index, union-attr]
+                if hasattr(element, 'Widget') and hasattr(element.Widget, 'configure'):  # type: ignore[attr-defined]
                     try:
                         # Включаем undo для Entry виджетов
-                        element.Widget.configure(undo=True, maxundo=-1)
+                        _ = element.Widget.configure(undo=True, maxundo=-1)  # type: ignore[attr-defined]
                     except:
                         pass
         
         # Восстанавливаем сохраненные значения если есть
         if saved_values:
-            if 'name' in saved_values:
-                self.window['-NAME-'].update(saved_values['name'])
-            if 'params' in saved_values:
-                for param, value in saved_values['params'].items():
+            name_value = saved_values.get('name')
+            if isinstance(name_value, str):
+                _ = self.window['-NAME-'].update(value=name_value)  # type: ignore[index, attr-defined, union-attr, call-overload]
+            
+            params_value = saved_values.get('params')
+            if isinstance(params_value, dict):
+                for param, value in params_value.items():  # type: ignore[union-attr]
                     value_key = f'-VAL_{param}-'
-                    if value_key in self.window.AllKeysDict:
-                        self.window[value_key].update(value)
+                    if value_key in self.window.AllKeysDict:  # type: ignore[attr-defined, union-attr]
+                        _ = self.window[value_key].update(value=value)  # type: ignore[index, attr-defined, union-attr, call-overload]
         
         while True:
-            event, values = self.window.read()
+            event, values = self.window.read()  # type: ignore[attr-defined, misc, union-attr]
             
-            if event in (sg.WIN_CLOSED, '-CANCEL-'):
-                self.window.close()
+            if event in (sg.WIN_CLOSED, '-CANCEL-'):  # type: ignore[attr-defined]
+                self.window.close()  # type: ignore[attr-defined]
                 return None
             
             # Изменение скрипта - возвращаем специальный результат для пересоздания окна
             elif event == '-SCRIPT-':
                 try:
-                    new_script = values['-SCRIPT-']
+                    new_script: str = values['-SCRIPT-']  # type: ignore[index]
                     
                     # Сохраняем текущие значения полей
-                    current_values = {
-                        'name': values['-NAME-'],
+                    current_values: "dict[str, str | dict[str, str]]" = {
+                        'name': str(values['-NAME-']),  # type: ignore[index]
                         'params': {}
                     }
-                    for key, value in values.items():
-                        # ВАЖНО: Проверяем, что key - это строка, а не число
-                        if isinstance(key, str) and key.startswith('-VAL_'):
-                            param_name = key[5:]  # Убираем '-VAL_'
-                            if value and not value.endswith('(base_1.env)'):
-                                current_values['params'][param_name] = value
+                    if values is not None:  # type: ignore[attr-defined]
+                        for key, value in values.items():  # type: ignore[union-attr]
+                            # ВАЖНО: Проверяем, что key - это строка, а не число
+                            if isinstance(key, str) and key.startswith('-VAL_'):
+                                param_name = key[5:]  # Убираем '-VAL_'
+                                if value and not str(value).endswith('(base_1.env)'):
+                                    params_dict = current_values['params']
+                                    if isinstance(params_dict, dict):
+                                        params_dict[param_name] = str(value)
                     
                     # Обновляем project_data с новым скриптом
                     self.project_data['script'] = new_script
                     
                     # Закрываем текущее окно
-                    self.window.close()
+                    _ = self.window.close()  # type: ignore[attr-defined]
                     
                     # Возвращаем специальный результат для пересоздания окна
-                    return {
+                    return {  # type: ignore[return-value]
                         '_action': 'change_script',
                         'script': new_script,
                         'values': current_values
@@ -488,16 +511,16 @@ class ProjectEditorDialog:
                 except Exception as e:
                     import traceback
                     traceback.print_exc()
-                    sg.popup_error(f"Ошибка при смене скрипта:\n{e}\n\nПодробности в консоли",
+                    _ = sg.popup_error(f"Ошибка при смене скрипта:\n{e}\n\nПодробности в консоли",  # type: ignore[attr-defined]
                                   background_color=COLORS['bg'],
                                   text_color=COLORS['error'])
                     # Не закрываем окно, продолжаем работу
                     continue
             
             # Изменение чекбокса - обновляем доступность поля и цвет фона
-            elif event.startswith('-CHK_'):
+            elif isinstance(event, str) and event.startswith('-CHK_'):
                 param_name = event[5:-1]  # Убираем '-CHK_' и '-'
-                is_checked = values[event]
+                is_checked: bool = bool(values[event])  # type: ignore[index]
                 
                 value_key = f'-VAL_{param_name}-'
                 browse_key = f'-BROWSE_{param_name}-'
@@ -519,42 +542,43 @@ class ProjectEditorDialog:
                     # Выключили чекбокс - показываем информационное значение из base_env
                     new_value = f"{base_value} (base_1.env)" if base_value else ''
                 
-                self.window[value_key].update(value=new_value, disabled=not is_checked, 
+                _ = self.window[value_key].update(value=new_value, disabled=not is_checked,  # type: ignore[index, attr-defined, call-overload]
                                              background_color=new_bg, text_color=new_text_color)
-                if browse_key in self.window.AllKeysDict:
-                    self.window[browse_key].update(disabled=not is_checked)
+                if browse_key in self.window.AllKeysDict:  # type: ignore[attr-defined]
+                    _ = self.window[browse_key].update(disabled=not is_checked)  # type: ignore[index, attr-defined]
             
             # Кнопка помощи "?" - показываем описание параметра
-            elif event.startswith('-HELP_'):
+            elif isinstance(event, str) and event.startswith('-HELP_'):
                 param_name = event[6:-1]  # Убираем '-HELP_' и '-'
-                script_name = values['-SCRIPT-']
-                description = self._get_param_description(param_name, script_name)
-                
-                if description:
-                    sg.popup(f'Параметр: {param_name}\n\n{description}',
-                            title='Описание параметра',
-                            background_color=COLORS['bg'],
-                            text_color=COLORS['text'],
-                            button_color=(COLORS['bg'], COLORS['primary']))
-                else:
-                    sg.popup(f'Параметр: {param_name}\n\nОписание отсутствует',
-                            title='Описание параметра',
-                            background_color=COLORS['bg'],
-                            text_color=COLORS['text_dim'],
-                            button_color=(COLORS['bg'], COLORS['primary']))
+                help_script_name: str = values['-SCRIPT-']  # type: ignore[index]
+                if help_script_name:
+                    description = self._get_param_description(param_name, help_script_name)
+                    
+                    if description:
+                        _ = sg.popup(f'Параметр: {param_name}\n\n{description}',  # type: ignore[attr-defined]
+                                title='Описание параметра',
+                                background_color=COLORS['bg'],
+                                text_color=COLORS['text'],
+                                button_color=(COLORS['bg'], COLORS['primary']))
+                    else:
+                        _ = sg.popup(f'Параметр: {param_name}\n\nОписание отсутствует',  # type: ignore[attr-defined]
+                                title='Описание параметра',
+                                background_color=COLORS['bg'],
+                                text_color=COLORS['text_dim'],
+                                button_color=(COLORS['bg'], COLORS['primary']))
             
             # Кнопка выбора пути
-            elif event.startswith('-BROWSE_'):
+            elif isinstance(event, str) and event.startswith('-BROWSE_'):
                 param_name = event[8:-1]  # Убираем '-BROWSE_' и '-'
                 value_key = f'-VAL_{param_name}-'
                 
                 # Получаем текущее значение для initial_folder
-                current_value = values[value_key]
-                initial_folder = None
+                current_value: str = values[value_key]  # type: ignore[index]
+                initial_folder: str | None = None
                 
                 if current_value:
-                    from pathlib import Path
-                    current_path = Path(current_value)
+                    from pathlib import Path as PathType
+                    current_path = PathType(current_value)
                     if current_path.exists():
                         if current_path.is_file():
                             initial_folder = str(current_path.parent)
@@ -565,137 +589,147 @@ class ProjectEditorDialog:
                         initial_folder = str(current_path.parent)
                 
                 # Определяем тип параметра
-                script_name = values['-SCRIPT-']
-                script_params = self._get_script_params(script_name)
-                param_type = script_params.get(param_name, {}).get('type', 'text')
-                
-                # Открываем диалог выбора
-                if param_type == 'path_folder':
-                    path = sg.popup_get_folder(
-                        'Выберите папку',
-                        default_path=initial_folder or '',
-                        background_color=COLORS['bg'],
-                        text_color=COLORS['text']
-                    )
-                else:  # path_file
-                    path = sg.popup_get_file(
-                        'Выберите файл',
-                        default_path=current_value or initial_folder or '',
-                        background_color=COLORS['bg'],
-                        text_color=COLORS['text']
-                    )
-                
-                if path:
-                    self.window[value_key].update(path)
+                current_script_name = values['-SCRIPT-']  # type: ignore[index]
+                if current_script_name:
+                    from pathlib import Path as PathType
+                    script_params = self._get_script_params(current_script_name)  # type: ignore[arg-type]
+                    param_info = script_params.get(param_name, {})
+                    param_type_value = param_info.get('type', 'text')
+                    param_type: str = str(param_type_value) if param_type_value else 'text'
+                    
+                    # Открываем диалог выбора
+                    if param_type == 'path_folder':
+                        path = sg.popup_get_folder(  # type: ignore[attr-defined]
+                            'Выберите папку',
+                            default_path=initial_folder or '',
+                            background_color=COLORS['bg'],
+                            text_color=COLORS['text']
+                        )
+                    else:  # path_file
+                        path = sg.popup_get_file(  # type: ignore[attr-defined]
+                            'Выберите файл',
+                            default_path=current_value or initial_folder or '',
+                            background_color=COLORS['bg'],
+                            text_color=COLORS['text']
+                        )
+                    
+                    if path:
+                        _ = self.window[value_key].update(value=path)  # type: ignore[index, attr-defined, union-attr, call-overload]
             
             # Обработка контекстного меню (правый клик)
             elif event == 'Копировать':
                 # Находим активный элемент
-                focused_element = self.window.find_element_with_focus()
-                if focused_element and hasattr(focused_element, 'Widget'):
+                focused_element = self.window.find_element_with_focus()  # type: ignore[attr-defined]
+                if focused_element and hasattr(focused_element, 'Widget'):  # type: ignore[attr-defined]
                     try:
                         # Получаем выделенный текст
-                        selected_text = focused_element.Widget.selection_get()
+                        selected_text = focused_element.Widget.selection_get()  # type: ignore[attr-defined]
                         if selected_text:
-                            self.window.TKroot.clipboard_clear()
-                            self.window.TKroot.clipboard_append(selected_text)
+                            _ = self.window.TKroot.clipboard_clear()  # type: ignore[attr-defined]
+                            _ = self.window.TKroot.clipboard_append(selected_text)  # type: ignore[attr-defined]
                     except:
                         pass
             
             elif event == 'Вставить':
                 # Находим активный элемент
-                focused_element = self.window.find_element_with_focus()
-                if focused_element and hasattr(focused_element, 'Widget'):
+                focused_element = self.window.find_element_with_focus()  # type: ignore[attr-defined]
+                if focused_element and hasattr(focused_element, 'Widget'):  # type: ignore[attr-defined]
                     try:
                         # Получаем текст из буфера обмена
-                        clipboard_text = self.window.TKroot.clipboard_get()
+                        clipboard_text = self.window.TKroot.clipboard_get()  # type: ignore[attr-defined]
                         if clipboard_text:
                             # Вставляем в позицию курсора
-                            focused_element.Widget.insert('insert', clipboard_text)
+                            focused_element.Widget.insert('insert', clipboard_text)  # type: ignore[attr-defined]
                     except:
                         pass
             
             elif event == 'Вырезать':
                 # Находим активный элемент
-                focused_element = self.window.find_element_with_focus()
-                if focused_element and hasattr(focused_element, 'Widget'):
+                focused_element = self.window.find_element_with_focus()  # type: ignore[attr-defined]
+                if focused_element and hasattr(focused_element, 'Widget'):  # type: ignore[attr-defined]
                     try:
                         # Получаем выделенный текст
-                        selected_text = focused_element.Widget.selection_get()
+                        selected_text = focused_element.Widget.selection_get()  # type: ignore[attr-defined]
                         if selected_text:
-                            self.window.TKroot.clipboard_clear()
-                            self.window.TKroot.clipboard_append(selected_text)
+                            _ = self.window.TKroot.clipboard_clear()  # type: ignore[attr-defined]
+                            _ = self.window.TKroot.clipboard_append(selected_text)  # type: ignore[attr-defined]
                             # Удаляем выделенный текст
-                            focused_element.Widget.delete('sel.first', 'sel.last')
+                            _ = focused_element.Widget.delete('sel.first', 'sel.last')  # type: ignore[attr-defined]
                     except:
                         pass
             
             elif event == 'Выделить все':
                 # Находим активный элемент
-                focused_element = self.window.find_element_with_focus()
-                if focused_element and hasattr(focused_element, 'Widget'):
+                focused_element = self.window.find_element_with_focus()  # type: ignore[attr-defined]
+                if focused_element and hasattr(focused_element, 'Widget'):  # type: ignore[attr-defined]
                     try:
                         # Выделяем весь текст
-                        focused_element.Widget.select_range(0, 'end')
-                        focused_element.Widget.icursor('end')
+                        focused_element.Widget.select_range(0, 'end')  # type: ignore[attr-defined]
+                        focused_element.Widget.icursor('end')  # type: ignore[attr-defined]
                     except:
                         pass
             
             elif event == 'Отменить':
                 # Находим активный элемент
-                focused_element = self.window.find_element_with_focus()
-                if focused_element and hasattr(focused_element, 'Widget'):
+                focused_element = self.window.find_element_with_focus()  # type: ignore[attr-defined]
+                if focused_element and hasattr(focused_element, 'Widget'):  # type: ignore[attr-defined]
                     try:
                         # Отменяем последнее действие
-                        focused_element.Widget.edit_undo()
+                        focused_element.Widget.edit_undo()  # type: ignore[attr-defined]
                     except:
                         pass
             
             # Сохранение
             elif event == '-SAVE-':
                 # Валидация имени
-                project_name = values['-NAME-'].strip()
+                project_name: str = str(values['-NAME-']).strip()  # type: ignore[index]
                 is_valid, error_msg = self._validate_project_name(project_name)
                 
                 if not is_valid:
-                    sg.popup_error(error_msg, background_color=COLORS['bg'], 
+                    _ = sg.popup_error(error_msg, background_color=COLORS['bg'],  # type: ignore[attr-defined]
                                   text_color=COLORS['error'])
                     continue
                 
                 # Собираем параметры
-                script_name = values['-SCRIPT-']
-                params = {'ScriptName': script_name}
+                save_script_name: str = str(values['-SCRIPT-'])  # type: ignore[index]
+                params: "dict[str, str]" = {'ScriptName': save_script_name}
                 
-                script_params = self._get_script_params(script_name)
-                for param in script_params.keys():
-                    checkbox_key = f'-CHK_{param}-'
-                    value_key = f'-VAL_{param}-'
+                if save_script_name:
+                    script_params = self._get_script_params(save_script_name)
+                    for param in script_params.keys():
+                        checkbox_key = f'-CHK_{param}-'
+                        value_key = f'-VAL_{param}-'
+                        
+                        if checkbox_key in values and values[checkbox_key]:  # type: ignore[operator]
+                            param_value: str = str(values[value_key])  # type: ignore[index]
+                            # Сохраняем только непустые значения и не информационные (без пометки base_1.env)
+                            if param_value and not param_value.endswith('(base_1.env)'):
+                                params[param] = param_value
                     
-                    if checkbox_key in values and values[checkbox_key]:
-                        param_value = values[value_key]
-                        # Сохраняем только непустые значения и не информационные (без пометки base_1.env)
-                        if param_value and not param_value.endswith('(base_1.env)'):
-                            params[param] = param_value
-                
-                # Проверяем обязательные поля
-                missing_required = []
-                for param, info in script_params.items():
-                    if info['required'] and param not in params:
-                        missing_required.append(param)
-                
-                if missing_required:
-                    sg.popup_error(f"Не заполнены обязательные поля:\n" + "\n".join(missing_required),
-                                  background_color=COLORS['bg'], text_color=COLORS['error'])
-                    continue
+                    # Проверяем обязательные поля
+                    missing_required: "list[str]" = []
+                    for param, info in script_params.items():
+                        if info.get('required', False) and param not in params:
+                            missing_required.append(param)
+                    
+                    if missing_required:
+                        _ = sg.popup_error(f"Не заполнены обязательные поля:\n" + "\n".join(missing_required),  # type: ignore[attr-defined]
+                                      background_color=COLORS['bg'], text_color=COLORS['error'])
+                        continue
                 
                 # Формируем результат
-                result = {
+                result: "dict[str, str | dict[str, str]]" = {
                     'name': project_name,
-                    'script': script_name,
-                    'params': params,
-                    'original_name': self.project_data.get('name', '') if self.mode == 'edit' else None
+                    'script': save_script_name,
+                    'params': params
                 }
                 
+                # Добавляем original_name только для режима edit
+                if self.mode == 'edit':
+                    original_name_value = self.project_data.get('name', '')
+                    if isinstance(original_name_value, str):
+                        result['original_name'] = original_name_value
+                
                 # Закрываем окно и возвращаем результат
-                self.window.close()
+                _ = self.window.close()  # type: ignore[attr-defined]
                 return result

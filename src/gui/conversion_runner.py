@@ -4,10 +4,16 @@
 Запуск конвертации проектов
 """
 
+from __future__ import annotations
+
 import os
 import subprocess
 import time
 import re
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from .project_scanner import ProjectDict
 
 from .constants import COLORS, SCRIPT_DIR, CONVERT_SCRIPT
 from .utils import format_duration
@@ -16,13 +22,13 @@ from .utils import format_duration
 class ConversionRunner:
     """Запуск конвертации проектов"""
     
-    def __init__(self, window):
+    def __init__(self, window: object) -> None:
         self.window = window
-        self.is_running = False
-        self.total_start_time = None
-        self.project_start_time = None
+        self.is_running: bool = False
+        self.total_start_time: float | None = None
+        self.project_start_time: float | None = None
     
-    def run_conversions(self, projects):
+    def run_conversions(self, projects: "list[ProjectDict]") -> None:  # type: ignore
         """
         Запускает конвертацию выбранных проектов
         
@@ -42,7 +48,7 @@ class ConversionRunner:
             # Обновляем статус
             status = f"Конвертация: {project['name']}..."
             percent = int((idx - 1) / total * 100)
-            self.window.write_event_value('-UPDATE_STATUS-', 
+            _ = self.window.write_event_value('-UPDATE_STATUS-',  # type: ignore[attr-defined]
                                          (idx - 1, total, percent, status))
             
             # Запоминаем время начала проекта
@@ -52,37 +58,39 @@ class ConversionRunner:
             self._run_single_conversion(project)
             
             # Вычисляем время выполнения проекта
+            assert self.project_start_time is not None
             project_duration = time.time() - self.project_start_time
             duration_str = format_duration(project_duration)
             
             # Обновляем прогресс
             percent = int(idx / total * 100)
             status = f"Завершено: {project['name']} (Время: {duration_str})"
-            self.window.write_event_value('-UPDATE_STATUS-', 
+            _ = self.window.write_event_value('-UPDATE_STATUS-',  # type: ignore[attr-defined]
                                          (idx, total, percent, status))
         
         # Завершение
         if self.is_running:
             # Вычисляем общее время выполнения
+            assert self.total_start_time is not None
             total_duration = time.time() - self.total_start_time
             total_duration_str = format_duration(total_duration)
             
-            self.window.write_event_value('-CONVERSION_DONE-', 
+            _ = self.window.write_event_value('-CONVERSION_DONE-',  # type: ignore[attr-defined]
                                          (total, total, 100, total_duration_str))
         
         self.is_running = False
     
-    def _run_single_conversion(self, project):
+    def _run_single_conversion(self, project: "ProjectDict") -> None:  # type: ignore
         """
         Запускает конвертацию одного проекта
         
         Args:
             project: словарь с информацией о проекте
         """
-        from pathlib import Path
+        from pathlib import Path as PathType
         
         # Формируем команду
-        project_path = Path(project['env_path']).parent
+        project_path = PathType(project['env_path']).parent
         cmd = ['python', str(CONVERT_SCRIPT), '--env', str(project_path)]
         
         # Добавляем custom путь если указан
@@ -90,12 +98,12 @@ class ConversionRunner:
             cmd.extend(['--output', project['custom_dst_path']])
         
         # Добавляем флаг отладки если включен
-        debug_mode = self.window and self.window['-DEBUG-'].get()
+        debug_mode: bool = bool(self.window and self.window['-DEBUG-'].get())  # type: ignore[attr-defined, index]
         if debug_mode:
             cmd.append('--debug')
         
         # Логируем команду с цветом и иконкой
-        self.window.write_event_value('-LOG-', {
+        _ = self.window.write_event_value('-LOG-', {  # type: ignore[attr-defined]
             'text': f"\n{'═'*80}\n▶ Запуск: {project['name']}\n{'═'*80}\n",
             'color': COLORS['primary']
         })
@@ -103,7 +111,7 @@ class ConversionRunner:
         # Выводим команду в режиме отладки
         if debug_mode:
             cmd_str = ' '.join(cmd)
-            self.window.write_event_value('-LOG-', {
+            _ = self.window.write_event_value('-LOG-', {  # type: ignore[attr-defined]
                 'text': f"[ОТЛАДКА] Команда: {cmd_str}\n",
                 'color': COLORS['text_dim']
             })
@@ -123,11 +131,11 @@ class ConversionRunner:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.STDOUT,
                 cwd=str(SCRIPT_DIR),
-                env=env,
-                bufsize=1  # Построчная буферизация
+                env=env
             )
             
             # Читаем вывод построчно с обработкой разных кодировок
+            assert process.stdout is not None
             for line in iter(process.stdout.readline, b''):
                 if not self.is_running:
                     process.terminate()
@@ -150,39 +158,40 @@ class ConversionRunner:
                 decoded_line = re.sub(r'\x1b\[[0-9;]*m', '', decoded_line)
                 
                 # Отправляем строку с определением цвета
-                self.window.write_event_value('-LOG-', {
+                _ = self.window.write_event_value('-LOG-', {  # type: ignore[attr-defined]
                     'text': decoded_line,
                     'color': self._get_log_color(decoded_line)
                 })
             
-            process.wait()
+            _ = process.wait()
             
             if process.returncode == 0:
                 # Вычисляем время выполнения проекта
+                assert self.project_start_time is not None
                 project_duration = time.time() - self.project_start_time
                 duration_str = format_duration(project_duration)
                 
-                self.window.write_event_value('-LOG-', {
+                _ = self.window.write_event_value('-LOG-', {  # type: ignore[attr-defined]
                     'text': f"✓ Проект {project['name']} завершен успешно. Время выполнения: {duration_str}\n",
                     'color': COLORS['success']
                 })
             else:
-                self.window.write_event_value('-LOG-', {
+                _ = self.window.write_event_value('-LOG-', {  # type: ignore[attr-defined]
                     'text': f"✗ Проект {project['name']} завершен с ошибкой (код: {process.returncode})\n",
                     'color': COLORS['error']
                 })
         
         except Exception as e:
-            self.window.write_event_value('-LOG-', {
+            _ = self.window.write_event_value('-LOG-', {  # type: ignore[attr-defined]
                 'text': f"✗ Исключение при выполнении {project['name']}: {e}\n",
                 'color': COLORS['error']
             })
     
-    def stop(self):
+    def stop(self) -> None:
         """Останавливает выполнение конвертации"""
         self.is_running = False
     
-    def _get_log_color(self, line):
+    def _get_log_color(self, line: str) -> str:
         """
         Определяет цвет для строки лога на основе содержимого
         
@@ -192,7 +201,7 @@ class ConversionRunner:
         Returns:
             str: цвет из COLORS
         """
-        line_lower = line.lower()
+        line_lower: str = line.lower()
         
         # Отладка
         if '[ОТЛАДКА]' in line or '[отладка]' in line_lower:
