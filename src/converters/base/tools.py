@@ -747,7 +747,7 @@ class EdtToolWrapper(ToolWrapper):
                 return tool_path
         
         # Ищем по версии V8_EDT_VERSION
-        edt_version = self.env_vars.get('V8_EDT_VERSION', '2023.3')
+        edt_version = self.env_vars.get('V8_EDT_VERSION', '2025.1.5')
         default_path = Path(f"C:/Program Files/1cv8/{edt_version}/1cedtcli.exe")
         if default_path.exists():
             return default_path
@@ -814,7 +814,7 @@ class EdtToolWrapper(ToolWrapper):
         elif self.use_ring:
             # Используем ring
             # Команда: ring.bat edt@<version> workspace export --project <project> --configuration-files <xml> --workspace-location <workspace>
-            edt_version = self.env_vars.get('V8_EDT_VERSION', '2023.3')
+            edt_version = self.env_vars.get('V8_EDT_VERSION', '2025.1.5')
             cmd = [
                 str(self.tool_path),
                 f'edt@{edt_version}',

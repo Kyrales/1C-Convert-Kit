@@ -98,12 +98,16 @@ class Logger:
     def error(self, message: str):
         """Выводит сообщение об ошибке."""
         if not self.silent:
-            # Удаляем BOM и другие проблемные Unicode символы для Windows консоли
-            clean_message = message.encode('ascii', errors='ignore').decode('ascii')
-            if not clean_message.strip():
-                # Если после очистки ничего не осталось, используем замену
-                clean_message = message.encode('cp1251', errors='replace').decode('cp1251')
-            print(f"{Colors.RED}[ОШИБКА]{Colors.RESET} {clean_message}")
+            # Удаляем BOM (\ufeff) и другие проблемные Unicode символы
+            clean_message = message.replace('\ufeff', '').replace('\ufffe', '')
+            
+            # Пытаемся вывести в консоль с обработкой ошибок кодировки
+            try:
+                print(f"{Colors.RED}[ОШИБКА]{Colors.RESET} {clean_message}")
+            except UnicodeEncodeError:
+                # Если не получается, используем замену проблемных символов
+                safe_message = clean_message.encode('cp1251', errors='replace').decode('cp1251')
+                print(f"{Colors.RED}[ОШИБКА]{Colors.RESET} {safe_message}")
     
     def warning(self, message: str):
         """Выводит предупреждение."""
@@ -264,14 +268,20 @@ class ToolOutputParser:
         for encoding in ToolOutputParser.ENCODINGS:
             try:
                 with open(file_path, 'r', encoding=encoding) as f:
-                    return f.read()
+                    content = f.read()
+                    # Удаляем BOM если присутствует
+                    content = content.lstrip('\ufeff\ufffe')
+                    return content
             except (UnicodeDecodeError, LookupError):
                 continue
         
         # Если ни одна кодировка не подошла, используем замену ошибочных символов
         try:
             with open(file_path, 'r', encoding='utf-8', errors='replace') as f:
-                return f.read()
+                content = f.read()
+                # Удаляем BOM если присутствует
+                content = content.lstrip('\ufeff\ufffe')
+                return content
         except Exception:
             return None
     
@@ -287,6 +297,7 @@ class ToolOutputParser:
             List[str]: Список строк с ошибками
         """
         errors: List[str] = []
+        
         content = ToolOutputParser.read_file_with_encoding(log_file)
         
         # Ключевые слова, указывающие на успешное завершение
@@ -309,7 +320,9 @@ class ToolOutputParser:
         ]
         
         if content:
-            for line in content.split('\n'):
+            lines = content.split('\n')
+            
+            for line in lines:
                 line = line.strip()
                 if not line:
                     continue
@@ -324,7 +337,6 @@ class ToolOutputParser:
                     continue
                 
                 # Добавляем строку как ошибку, если она содержит ключевые слова ошибки
-                # или если это непустая строка (для обратной совместимости)
                 if any(kw.lower() in line_lower for kw in error_keywords):
                     errors.append(line)
         

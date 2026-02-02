@@ -706,7 +706,7 @@ class ConfigurationConverter(BaseConverter):
                         '--configuration-files', str(temp_xml)
                     ]
                 elif self.edt_tool.use_ring:
-                    edt_version = self.env_vars.get('V8_EDT_VERSION', '2023.3')
+                    edt_version = self.env_vars.get('V8_EDT_VERSION', '2025.1.5')
                     cmd = [
                         str(self.edt_tool.tool_path),
                         f'edt@{edt_version}',

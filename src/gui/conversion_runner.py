@@ -154,8 +154,19 @@ class ConversionRunner:
                 if decoded_line is None:
                     decoded_line = line.decode('utf-8', errors='replace')
                 
-                # Удаляем ANSI escape-коды (цветовые коды)
-                decoded_line = re.sub(r'\x1b\[[0-9;]*m', '', decoded_line)
+                # Удаляем ANSI escape-коды (цветовые коды и другие управляющие последовательности)
+                # \x1b\[[0-9;]*m - стандартные цветовые коды
+                # \x1b\[[0-9;]*[A-Za-z] - другие управляющие последовательности (перемещение курсора и т.д.)
+                decoded_line = re.sub(r'\x1b\[[0-9;]*[A-Za-z]', '', decoded_line)
+                
+                # Удаляем символы возврата каретки и другие управляющие символы
+                # которые могут "затирать" текст в консоли
+                decoded_line = decoded_line.replace('\r\n', '\n')  # Нормализуем переводы строк
+                decoded_line = decoded_line.replace('\r', '\n')    # Заменяем \r на \n
+                
+                # Пропускаем пустые строки после обработки
+                if not decoded_line.strip():
+                    continue
                 
                 # Отправляем строку с определением цвета
                 _ = self.window.write_event_value('-LOG-', {  # type: ignore[attr-defined]

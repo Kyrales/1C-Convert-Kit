@@ -24,7 +24,7 @@
 
 - `RING_TOOL` - путь к ring.bat
 - `EDT_TOOL` - путь к 1cedtcli.exe
-- `V8_EDT_VERSION` - версия EDT (по умолчанию `2023.3`)
+- `V8_EDT_VERSION` - версия EDT (по умолчанию `2025.1.5`)
 
 ## Примеры использования
 
