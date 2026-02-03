@@ -14,7 +14,7 @@ from abc import ABC, abstractmethod
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Dict, Optional, List, Callable
+from typing import Dict, Optional, List, Callable, Tuple
 
 
 def format_duration(seconds: float) -> str:
@@ -286,17 +286,48 @@ class ToolOutputParser:
             return None
     
     @staticmethod
-    def parse_designer_log(log_file: Path) -> List[str]:
+    def parse_designer_log(log_file: Path, logger: Optional[Logger] = None) -> Tuple[List[str], List[str]]:
         """
-        Парсит лог файл designer и извлекает ошибки.
+        Парсит лог файл designer и извлекает ошибки и предупреждения.
+        
+        Функция анализирует лог-файл инструмента 1С (designer/ibcmd/ring) и разделяет
+        сообщения на критические ошибки и некритические предупреждения.
+        
+        Логика работы:
+        1. Читает файл с автоопределением кодировки (UTF-8/CP1251/CP866)
+        2. Фильтрует информационные сообщения ([INFO]) и сообщения об успехе
+        3. Ищет строки с ключевыми словами ошибок (ошибка, error, не найден и т.д.)
+        4. Разделяет найденные строки на:
+           - Критические ошибки: блокируют выполнение конвертации
+           - Предупреждения: не блокируют, но информируют пользователя
+        
+        Паттерны предупреждений (не критические):
+        - "возможно неверная ссылка" - проблемы со ссылками в справке
+        - "внутри справки" - проблемы в документации конфигурации
+        
+        Ключевые слова ошибок:
+        - Русские: ошибка, неверн, отсутствующ, не найден, не удалось
+        - Английские: error, failed
         
         Args:
-            log_file: Путь к лог-файлу
+            log_file: Путь к лог-файлу инструмента 1С
+            logger: Логгер для вывода предупреждений в консоль (опционально).
+                   Если передан, предупреждения будут выведены через logger.warning()
             
         Returns:
-            List[str]: Список строк с ошибками
+            Tuple[List[str], List[str]]: Кортеж из двух списков:
+                - [0] errors: Список критических ошибок (блокируют конвертацию)
+                - [1] warnings: Список предупреждений (не блокируют конвертацию)
+        
+        Example:
+            >>> errors, warnings = ToolOutputParser.parse_designer_log(log_path)
+            >>> if errors:
+            >>>     print(f"Найдено {len(errors)} ошибок")
+            >>> if warnings:
+            >>>     print(f"Найдено {len(warnings)} предупреждений")
         """
         errors: List[str] = []
+        warnings: List[str] = []
         
         content = ToolOutputParser.read_file_with_encoding(log_file)
         
@@ -319,6 +350,12 @@ class ToolOutputParser:
             'failed',
         ]
         
+        # Паттерны предупреждений, которые НЕ являются критическими ошибками
+        warning_patterns = [
+            'возможно неверная ссылка',  # Предупреждения о ссылках в справке
+            'внутри справки',             # Предупреждения о справке
+        ]
+        
         if content:
             lines = content.split('\n')
             
@@ -336,24 +373,36 @@ class ToolOutputParser:
                 if any(kw.lower() in line_lower for kw in success_keywords):
                     continue
                 
-                # Добавляем строку как ошибку, если она содержит ключевые слова ошибки
-                if any(kw.lower() in line_lower for kw in error_keywords):
-                    errors.append(line)
+                # Проверяем, является ли это предупреждением (не критической ошибкой)
+                is_warning = any(pattern.lower() in line_lower for pattern in warning_patterns)
+                
+                # Проверяем наличие ключевых слов ошибки
+                has_error_keyword = any(kw.lower() in line_lower for kw in error_keywords)
+                
+                if has_error_keyword:
+                    if is_warning:
+                        # Это предупреждение
+                        warnings.append(line)
+                        if logger:
+                            logger.warning(line)
+                    else:
+                        # Это ошибка
+                        errors.append(line)
         
-        return errors
+        return errors, warnings
     
     @staticmethod
     def has_errors(log_file: Path) -> bool:
         """
-        Проверяет наличие ошибок в логе.
+        Проверяет наличие критических ошибок в логе.
         
         Args:
             log_file: Путь к лог-файлу
             
         Returns:
-            bool: True если есть ошибки
+            bool: True если есть критические ошибки (предупреждения не учитываются)
         """
-        errors = ToolOutputParser.parse_designer_log(log_file)
+        errors, _ = ToolOutputParser.parse_designer_log(log_file)
         return len(errors) > 0
 
 

@@ -584,8 +584,8 @@ class ConfigurationConverter(BaseConverter):
                 'DESIGNER',
                 '/IBConnectionString', ib_conn_str,
                 '/DisableStartupDialogs',
-                f'/Out {load_log_file}',
-                f'/LoadCfg {cf_file}'
+                '/Out', str(load_log_file),
+                '/LoadCfg', str(cf_file)
             ]
             
             import subprocess
@@ -624,8 +624,8 @@ class ConfigurationConverter(BaseConverter):
                     'DESIGNER',
                     '/IBConnectionString', ib_conn_str,
                     '/DisableStartupDialogs',
-                    f'/Out {dump_log_file}',
-                    f'/DumpConfigToFiles {output_dir}'
+                    '/Out', str(dump_log_file),
+                    '/DumpConfigToFiles', str(output_dir)
                 ]
                 
                 result = subprocess.run(
@@ -672,8 +672,8 @@ class ConfigurationConverter(BaseConverter):
                     'DESIGNER',
                     '/IBConnectionString', ib_conn_str,
                     '/DisableStartupDialogs',
-                    f'/Out {dump_log_file}',
-                    f'/DumpConfigToFiles {temp_xml}'
+                    '/Out', str(dump_log_file),
+                    '/DumpConfigToFiles', str(temp_xml)
                 ]
                 
                 result = subprocess.run(

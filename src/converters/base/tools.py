@@ -38,9 +38,27 @@ class ToolWrapper(ABC):
             cmd: Список аргументов команды
         """
         if self.logger.debug:
-            # Формируем строку команды
-            cmd_str = ' '.join(f'"{arg}"' if ' ' in str(arg) else str(arg) for arg in cmd)
+            # Формируем строку команды для CMD
+            # Правило: берем в кавычки аргументы с пробелами, двоеточием, точкой с запятой или специальными символами
+            def needs_quotes(arg: str) -> bool:
+                """Проверяет, нужны ли кавычки для аргумента."""
+                # Двоеточие добавлено для путей Windows (C:\path)
+                special_chars = [' ', ':', ';', '&', '|', '<', '>', '^', '(', ')']
+                return any(char in arg for char in special_chars)
+            
+            cmd_parts = []
+            for arg in cmd:
+                arg_str = str(arg)
+                if needs_quotes(arg_str):
+                    # Экранируем внутренние кавычки если есть
+                    arg_str = arg_str.replace('"', '\\"')
+                    cmd_parts.append(f'"{arg_str}"')
+                else:
+                    cmd_parts.append(arg_str)
+            
+            cmd_str = ' '.join(cmd_parts)
             self.logger.debug_msg(f"Команда: {cmd_str}")
+            self.logger.debug_msg("Примечание: Команда отформатирована для копирования в CMD")
     
     @abstractmethod
     def find_tool(self) -> Optional[Path]:
@@ -156,7 +174,7 @@ class V8ToolWrapper(ToolWrapper):
             'CREATEINFOBASE',
             ib_connection,
             '/DisableStartupDialogs',
-            f'/Out {log_file}'
+            '/Out', str(log_file)
         ]
         
         # Выводим команду в режиме отладки
@@ -171,10 +189,10 @@ class V8ToolWrapper(ToolWrapper):
                 errors='replace'
             )
             
-            # Проверяем лог на ошибки
+            # Проверяем лог на ошибки и предупреждения
             if log_file.exists():
                 from .converter import ToolOutputParser
-                errors = ToolOutputParser.parse_designer_log(log_file)
+                errors, warnings = ToolOutputParser.parse_designer_log(log_file, self.logger)
                 if errors:
                     error_msg = '\n'.join(errors)
                     raise ToolExecutionError(
@@ -228,8 +246,8 @@ class V8ToolWrapper(ToolWrapper):
             'DESIGNER',
             '/IBConnectionString', ib_conn_string,
             '/DisableStartupDialogs',
-            f'/Out {log_file}',
-            f'/LoadConfigFromFiles {xml_path}'
+            '/Out', str(log_file),
+            '/LoadConfigFromFiles', str(xml_path)
         ]
         
         if extension_name:
@@ -255,10 +273,10 @@ class V8ToolWrapper(ToolWrapper):
                 errors='replace'
             )
             
-            # Проверяем лог на ошибки
+            # Проверяем лог на ошибки и предупреждения
             if log_file.exists():
                 from .converter import ToolOutputParser
-                errors = ToolOutputParser.parse_designer_log(log_file)
+                errors, warnings = ToolOutputParser.parse_designer_log(log_file, self.logger)
                 if errors:
                     error_msg = '\n'.join(errors)
                     raise ToolExecutionError(
@@ -312,8 +330,8 @@ class V8ToolWrapper(ToolWrapper):
             'DESIGNER',
             '/IBConnectionString', ib_conn_string,
             '/DisableStartupDialogs',
-            f'/Out {log_file}',
-            f'/DumpCfg {output_file}'
+            '/Out', str(log_file),
+            '/DumpCfg', str(output_file)
         ]
         
         if extension_name:
@@ -343,10 +361,10 @@ class V8ToolWrapper(ToolWrapper):
                 errors='replace'
             )
             
-            # Проверяем лог на ошибки
+            # Проверяем лог на ошибки и предупреждения
             if log_file.exists():
                 from .converter import ToolOutputParser
-                errors = ToolOutputParser.parse_designer_log(log_file)
+                errors, warnings = ToolOutputParser.parse_designer_log(log_file, self.logger)
                 if errors:
                     error_msg = '\n'.join(errors)
                     raise ToolExecutionError(
@@ -404,8 +422,8 @@ class V8ToolWrapper(ToolWrapper):
             'DESIGNER',
             '/IBConnectionString', ib_conn_string,
             '/DisableStartupDialogs',
-            f'/Out {log_file}',
-            f'/LoadExternalDataProcessorOrReportFromFiles {xml_file}',
+            '/Out', str(log_file),
+            '/LoadExternalDataProcessorOrReportFromFiles', str(xml_file),
             str(output_dir)
         ]
         
@@ -433,10 +451,10 @@ class V8ToolWrapper(ToolWrapper):
                 errors='replace'
             )
             
-            # Проверяем лог на ошибки
+            # Проверяем лог на ошибки и предупреждения
             if log_file.exists():
                 from .converter import ToolOutputParser
-                errors = ToolOutputParser.parse_designer_log(log_file)
+                errors, warnings = ToolOutputParser.parse_designer_log(log_file, self.logger)
                 if errors:
                     error_msg = '\n'.join(errors)
                     raise ToolExecutionError(
