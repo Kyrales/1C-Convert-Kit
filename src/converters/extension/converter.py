@@ -156,10 +156,7 @@ class ExtensionConverter(BaseConverter):
         """
         Подготавливает базовую ИБ для загрузки расширения.
         
-        Логика:
-        1. Если указан V8_BASE_IB - использовать существующую ИБ
-        2. Если указан V8_BASE_CONFIG - создать ИБ и загрузить конфигурацию
-        3. Иначе - создать пустую ИБ
+        Использует общий helper prepare_base_infobase из base.tools.
         
         Returns:
             str: Строка подключения к ИБ
@@ -168,110 +165,19 @@ class ExtensionConverter(BaseConverter):
             ToolNotFoundError: Если инструмент не найден
             ToolExecutionError: Если ошибка при создании/загрузке ИБ
         """
-        self.log_info("Подготовка базовой информационной базы для расширения...")
+        from ..base.tools import prepare_base_infobase
         
         # Проверяем что temp_dir создана
         assert self.temp_dir is not None, "temp_dir должна быть создана перед конвертацией"
         
-        # Случай 1: Используем существующую ИБ
-        if self.base_ib:
-            self.log_info(f"Использование существующей ИБ: {self.base_ib}")
-            
-            # Формируем строку подключения
-            if self.base_ib.startswith('/S') or self.base_ib.startswith('/F'):
-                # Убираем префикс /F или /S, оставляем только путь
-                ib_connection = self.base_ib[2:] if self.base_ib.startswith('/F') else self.base_ib
-            else:
-                ib_connection = self.base_ib
-            
-            # Проверяем существование ИБ
-            if not self.base_ib.startswith('/S'):
-                base_ib_path = Path(self.base_ib.replace('/F', ''))
-                if not base_ib_path.exists():
-                    raise ValidationError(f"Базовая ИБ не найдена: {self.base_ib}")
-            
-            return ib_connection
-        
-        # Случай 2: Создаем ИБ и загружаем конфигурацию
-        if self.base_config:
-            self.log_info(f"Создание ИБ с конфигурацией: {self.base_config}")
-            
-            # Проверяем доступность инструмента
-            if not self.v8_tool.is_available():
-                raise ToolNotFoundError(
-                    "1cv8.exe не найден. " +
-                    "Установите платформу 1С или укажите путь в переменной V8_TOOL"
-                )
-            
-            # Создаем временную ИБ
-            temp_db = self.temp_dir / 'base_ib'
-            _ = temp_db.mkdir(exist_ok=True)
-            
-            # Формируем строку подключения для CREATEINFOBASE (File=path;)
-            temp_db_str = str(temp_db).replace('\\', '/')
-            ib_connection_create = f'File={temp_db_str};'
-            ib_connection = str(temp_db)  # Для последующих операций
-            log_file = self.temp_dir / 'create_base_ib.log'
-            
-            # Создаем ИБ
-            # Сообщение выводится внутри v8_tool.create_infobase()
-            result = self.v8_tool.create_infobase(ib_connection_create, log_file)
-            
-            if result != 0:
-                raise ToolExecutionError(
-                    "Ошибка при создании базовой ИБ",
-                    temp_dir=self.temp_dir
-                )
-            
-            # Загружаем конфигурацию
-            self.log_info("Загрузка базовой конфигурации...")
-            load_log_file = self.temp_dir / 'load_base_config.log'
-            
-            result = self.v8_tool.load_config_from_files(
-                ib_connection=ib_connection,
-                xml_path=Path(self.base_config),
-                log_file=load_log_file
-            )
-            
-            if result != 0:
-                raise ToolExecutionError(
-                    "Ошибка при загрузке базовой конфигурации",
-                    temp_dir=self.temp_dir
-                )
-            
-            self.log_success("Базовая ИБ создана и конфигурация загружена")
-            return ib_connection
-        
-        # Случай 3: Создаем пустую ИБ
-        self.log_info("Создание пустой ИБ для расширения...")
-        
-        # Проверяем доступность инструмента
-        if not self.v8_tool.is_available():
-            raise ToolNotFoundError(
-                "1cv8.exe не найден. " +
-                "Установите платформу 1С или укажите путь в переменной V8_TOOL"
-            )
-        
-        # Создаем временную ИБ
-        temp_db = self.temp_dir / 'base_ib'
-        _ = temp_db.mkdir(exist_ok=True)
-        
-        # Формируем строку подключения для CREATEINFOBASE (File=path;)
-        temp_db_str = str(temp_db).replace('\\', '/')
-        ib_connection_create = f'File={temp_db_str};'
-        ib_connection = str(temp_db)  # Для последующих операций
-        log_file = self.temp_dir / 'create_empty_ib.log'
-        
-        result = self.v8_tool.create_infobase(ib_connection_create, log_file)
-        
-        if result != 0:
-            raise ToolExecutionError(
-                "Ошибка при создании пустой ИБ",
-                temp_dir=self.temp_dir
-            )
-        
-        self.log_success("Пустая ИБ создана")
-        return ib_connection
+        return prepare_base_infobase(
+            base_ib=self.base_ib,
+            base_config=self.base_config,
+            temp_dir=self.temp_dir,
+            v8_tool=self.v8_tool,
+            logger=self.logger,
+            entity_type="расширения"
+        )
     
     def _convert_from_edt(self) -> int:
         """

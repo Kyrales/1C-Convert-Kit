@@ -884,3 +884,141 @@ class EdtToolWrapper(ToolWrapper):
             
         except subprocess.SubprocessError as e:
             raise ToolExecutionError(f"Ошибка запуска EDT инструмента: {e}")
+
+
+
+def prepare_base_infobase(
+    *,
+    base_ib: Optional[str],
+    base_config: Optional[str],
+    temp_dir: Path,
+    v8_tool: V8ToolWrapper,
+    logger: Logger,
+    entity_type: str = "обработок/отчетов"
+) -> str:
+    """
+    Подготавливает базовую ИБ для загрузки обработок/отчетов/расширений.
+    
+    Логика:
+    1. Если указан base_ib - использовать существующую ИБ
+    2. Если указан base_config - создать ИБ и загрузить конфигурацию
+    3. Иначе - создать пустую ИБ
+    
+    Args:
+        base_ib: Путь к существующей ИБ (V8_BASE_IB)
+        base_config: Путь к конфигурации для загрузки (V8_BASE_CONFIG)
+        temp_dir: Директория для временных файлов
+        v8_tool: Обертка для работы с 1cv8.exe
+        logger: Логгер для вывода сообщений
+        entity_type: Тип сущности для сообщений (по умолчанию "обработок/отчетов")
+    
+    Returns:
+        str: Строка подключения к ИБ
+        
+    Raises:
+        ValidationError: Если базовая ИБ не найдена
+        ToolNotFoundError: Если инструмент не найден
+        ToolExecutionError: Если ошибка при создании/загрузке ИБ
+    """
+    logger.info(f"Подготовка базовой информационной базы для {entity_type}...")
+    
+    # Случай 1: Используем существующую ИБ
+    if base_ib:
+        logger.info(f"Использование существующей ИБ: {base_ib}")
+        
+        # Формируем строку подключения
+        if base_ib.startswith('/S') or base_ib.startswith('/F'):
+            # Убираем префикс /F или /S, оставляем только путь
+            ib_connection = base_ib[2:] if base_ib.startswith('/F') else base_ib
+        else:
+            ib_connection = base_ib
+        
+        # Проверяем существование ИБ (только для файловых)
+        if not base_ib.startswith('/S'):
+            base_ib_path = Path(base_ib.replace('/F', ''))
+            if not base_ib_path.exists():
+                from .converter import ValidationError
+                raise ValidationError(f"Базовая ИБ не найдена: {base_ib}")
+        
+        return ib_connection
+    
+    # Случай 2: Создаем ИБ и загружаем конфигурацию
+    if base_config:
+        logger.info(f"Создание ИБ с конфигурацией: {base_config}")
+        
+        # Проверяем доступность инструмента
+        if not v8_tool.is_available():
+            raise ToolNotFoundError(
+                "1cv8.exe не найден. " +
+                "Установите платформу 1С или укажите путь в переменной V8_TOOL"
+            )
+        
+        # Создаем временную ИБ
+        temp_db = temp_dir / 'base_ib'
+        temp_db.mkdir(exist_ok=True)
+        
+        # Формируем строку подключения для CREATEINFOBASE (File=path;)
+        temp_db_str = str(temp_db).replace('\\', '/')
+        ib_connection_create = f'File={temp_db_str};'
+        ib_connection = str(temp_db)  # Для последующих операций
+        log_file = temp_dir / 'create_base_ib.log'
+        
+        # Создаем ИБ
+        # Сообщение выводится внутри v8_tool.create_infobase()
+        result = v8_tool.create_infobase(ib_connection_create, log_file)
+        
+        if result != 0:
+            raise ToolExecutionError(
+                "Ошибка при создании базовой ИБ",
+                temp_dir=temp_dir
+            )
+        
+        # Загружаем конфигурацию
+        logger.info("Загрузка базовой конфигурации...")
+        load_log_file = temp_dir / 'load_base_config.log'
+        
+        result = v8_tool.load_config_from_files(
+            ib_connection=ib_connection,
+            xml_path=Path(base_config),
+            log_file=load_log_file
+        )
+        
+        if result != 0:
+            raise ToolExecutionError(
+                "Ошибка при загрузке базовой конфигурации",
+                temp_dir=temp_dir
+            )
+        
+        logger.success("Базовая ИБ создана и конфигурация загружена")
+        return ib_connection
+    
+    # Случай 3: Создаем пустую ИБ
+    logger.info(f"Создание пустой ИБ для {entity_type}...")
+    
+    # Проверяем доступность инструмента
+    if not v8_tool.is_available():
+        raise ToolNotFoundError(
+            "1cv8.exe не найден. " +
+            "Установите платформу 1С или укажите путь в переменной V8_TOOL"
+        )
+    
+    # Создаем временную ИБ
+    temp_db = temp_dir / 'base_ib'
+    temp_db.mkdir(exist_ok=True)
+    
+    # Формируем строку подключения для CREATEINFOBASE (File=path;)
+    temp_db_str = str(temp_db).replace('\\', '/')
+    ib_connection_create = f'File={temp_db_str};'
+    ib_connection = str(temp_db)  # Для последующих операций
+    log_file = temp_dir / 'create_empty_ib.log'
+    
+    result = v8_tool.create_infobase(ib_connection_create, log_file)
+    
+    if result != 0:
+        raise ToolExecutionError(
+            "Ошибка при создании пустой ИБ",
+            temp_dir=temp_dir
+        )
+    
+    logger.success("Пустая ИБ создана")
+    return ib_connection
