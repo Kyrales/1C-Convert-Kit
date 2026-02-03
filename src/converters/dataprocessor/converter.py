@@ -161,6 +161,64 @@ class DataProcessorConverter(BaseConverter):
         
         return files
     
+    def _process_files_batch(
+        self,
+        processor_files: List[Tuple[Path, str, str]],
+        ib_connection: str,
+        output_dir: Path,
+        progress_base: int,
+        progress_span: int
+    ) -> None:
+        """
+        Обрабатывает пакет файлов обработок/отчетов.
+        
+        Args:
+            processor_files: Список кортежей (xml_file, extension, name)
+            ib_connection: Строка подключения к ИБ
+            output_dir: Директория для выходных файлов
+            progress_base: Базовое значение прогресса (начало диапазона)
+            progress_span: Диапазон прогресса (размер диапазона)
+        
+        Raises:
+            ToolExecutionError: Если ошибка при конвертации файла
+        """
+        # Создаем выходную директорию
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Конвертируем каждый файл
+        total_files = len(processor_files)
+        for idx, (xml_file, extension, name) in enumerate(processor_files, 1):
+            self.log_info(f"Конвертация {idx}/{total_files}: {name}{extension}")
+            
+            log_file = self.temp_dir / f'load_{name}.log'
+            
+            result = self.v8_tool.load_external_processor(
+                ib_connection=ib_connection,
+                xml_file=xml_file,
+                output_dir=output_dir,
+                log_file=log_file
+            )
+            
+            if result != 0:
+                raise ToolExecutionError(
+                    f"Ошибка при конвертации {name}{extension}",
+                    temp_dir=self.temp_dir
+                )
+            
+            # Проверяем что файл создан
+            output_file = output_dir / f"{name}{extension}"
+            if not output_file.exists():
+                raise ToolExecutionError(
+                    f"Выходной файл не создан: {output_file}",
+                    temp_dir=self.temp_dir
+                )
+            
+            self.log_success(f"Создан файл: {output_file}")
+            
+            # Обновляем прогресс
+            progress = progress_base + int((idx / total_files) * progress_span)
+            self.report_progress(f"Обработано {idx}/{total_files}", progress)
+    
     def _convert_from_edt(self) -> int:
         """
         Конвертирует обработки/отчеты из EDT проекта в EPF/ERF файлы.
@@ -228,45 +286,16 @@ class DataProcessorConverter(BaseConverter):
             
             self.log_info(f"Найдено файлов для конвертации: {len(processor_files)}")
             
-            # Создаем выходную директорию
-            output_dir = Path(self.dst_path)
-            output_dir.mkdir(parents=True, exist_ok=True)
+            # Используем общий метод для обработки файлов
+            self._process_files_batch(
+                processor_files=processor_files,
+                ib_connection=ib_connection,
+                output_dir=Path(self.dst_path),
+                progress_base=60,
+                progress_span=35
+            )
             
-            # Конвертируем каждый файл
-            total_files = len(processor_files)
-            for idx, (xml_file, extension, name) in enumerate(processor_files, 1):
-                self.log_info(f"Конвертация {idx}/{total_files}: {name}{extension}")
-                
-                log_file = self.temp_dir / f'load_{name}.log'
-                
-                result = self.v8_tool.load_external_processor(
-                    ib_connection=ib_connection,
-                    xml_file=xml_file,
-                    output_dir=output_dir,
-                    log_file=log_file
-                )
-                
-                if result != 0:
-                    raise ToolExecutionError(
-                        f"Ошибка при конвертации {name}{extension}",
-                        temp_dir=self.temp_dir
-                    )
-                
-                # Проверяем что файл создан
-                output_file = output_dir / f"{name}{extension}"
-                if not output_file.exists():
-                    raise ToolExecutionError(
-                        f"Выходной файл не создан: {output_file}",
-                        temp_dir=self.temp_dir
-                    )
-                
-                self.log_success(f"Создан файл: {output_file}")
-                
-                # Обновляем прогресс
-                progress = 60 + int((idx / total_files) * 35)
-                self.report_progress(f"Обработано {idx}/{total_files}", progress)
-            
-            self.end_stage(f"Все файлы успешно сконвертированы в: {output_dir}")
+            self.end_stage(f"Все файлы успешно сконвертированы в: {self.dst_path}")
             self.report_progress("Конвертация завершена", 100)
             
             return 0
@@ -312,45 +341,16 @@ class DataProcessorConverter(BaseConverter):
             
             self.log_info(f"Найдено файлов для конвертации: {len(processor_files)}")
             
-            # Создаем выходную директорию
-            output_dir = Path(self.dst_path)
-            output_dir.mkdir(parents=True, exist_ok=True)
+            # Используем общий метод для обработки файлов
+            self._process_files_batch(
+                processor_files=processor_files,
+                ib_connection=ib_connection,
+                output_dir=Path(self.dst_path),
+                progress_base=40,
+                progress_span=55
+            )
             
-            # Конвертируем каждый файл
-            total_files = len(processor_files)
-            for idx, (xml_file, extension, name) in enumerate(processor_files, 1):
-                self.log_info(f"Конвертация {idx}/{total_files}: {name}{extension}")
-                
-                log_file = self.temp_dir / f'load_{name}.log'
-                
-                result = self.v8_tool.load_external_processor(
-                    ib_connection=ib_connection,
-                    xml_file=xml_file,
-                    output_dir=output_dir,
-                    log_file=log_file
-                )
-                
-                if result != 0:
-                    raise ToolExecutionError(
-                        f"Ошибка при конвертации {name}{extension}",
-                        temp_dir=self.temp_dir
-                    )
-                
-                # Проверяем что файл создан
-                output_file = output_dir / f"{name}{extension}"
-                if not output_file.exists():
-                    raise ToolExecutionError(
-                        f"Выходной файл не создан: {output_file}",
-                        temp_dir=self.temp_dir
-                    )
-                
-                self.log_success(f"Создан файл: {output_file}")
-                
-                # Обновляем прогресс
-                progress = 40 + int((idx / total_files) * 55)
-                self.report_progress(f"Обработано {idx}/{total_files}", progress)
-            
-            self.end_stage(f"Все файлы успешно сконвертированы в: {output_dir}")
+            self.end_stage(f"Все файлы успешно сконвертированы в: {self.dst_path}")
             self.report_progress("Конвертация завершена", 100)
             
             return 0

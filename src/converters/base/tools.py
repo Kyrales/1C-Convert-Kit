@@ -130,6 +130,23 @@ class V8ToolWrapper(ToolWrapper):
         
         return None
     
+    def _append_ib_credentials(self, cmd: list) -> None:
+        """
+        Добавляет учетные данные к команде 1cv8.exe.
+        
+        Добавляет параметры /N (имя пользователя) и /P (пароль) к команде,
+        если они указаны в переменных окружения V8_IB_USER и V8_IB_PWD.
+        
+        Args:
+            cmd: Список аргументов команды (модифицируется in-place)
+        """
+        ib_user = self.env_vars.get('V8_IB_USER', '')
+        ib_pwd = self.env_vars.get('V8_IB_PWD', '')
+        if ib_user:
+            cmd.extend([f'/N{ib_user}'])
+        if ib_pwd:
+            cmd.extend([f'/P{ib_pwd}'])
+    
     def execute(self, *args: str, **kwargs: str) -> "subprocess.CompletedProcess[str]":
         """
         Выполняет команду 1cv8.exe.
@@ -338,12 +355,7 @@ class V8ToolWrapper(ToolWrapper):
             cmd.extend(['-Extension', extension_name])
         
         # Добавляем учетные данные если указаны
-        ib_user = self.env_vars.get('V8_IB_USER', '')
-        ib_pwd = self.env_vars.get('V8_IB_PWD', '')
-        if ib_user:
-            cmd.extend([f'/N{ib_user}'])
-        if ib_pwd:
-            cmd.extend([f'/P{ib_pwd}'])
+        self._append_ib_credentials(cmd)
         
         # Выводим команду в режиме отладки
 
@@ -428,12 +440,7 @@ class V8ToolWrapper(ToolWrapper):
         ]
         
         # Добавляем учетные данные если указаны
-        ib_user = self.env_vars.get('V8_IB_USER', '')
-        ib_pwd = self.env_vars.get('V8_IB_PWD', '')
-        if ib_user:
-            cmd.extend([f'/N{ib_user}'])
-        if ib_pwd:
-            cmd.extend([f'/P{ib_pwd}'])
+        self._append_ib_credentials(cmd)
         
         # Выводим команду в режиме отладки
 
