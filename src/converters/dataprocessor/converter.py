@@ -120,6 +120,8 @@ class DataProcessorConverter(BaseConverter):
         """
         from ..base.tools import prepare_base_infobase
         
+        assert self.temp_dir is not None, "temp_dir должен быть инициализирован"
+        
         return prepare_base_infobase(
             base_ib=self.base_ib,
             base_config=self.base_config,
@@ -190,6 +192,7 @@ class DataProcessorConverter(BaseConverter):
         for idx, (xml_file, extension, name) in enumerate(processor_files, 1):
             self.log_info(f"Конвертация {idx}/{total_files}: {name}{extension}")
             
+            assert self.temp_dir is not None, "temp_dir должен быть инициализирован"
             log_file = self.temp_dir / f'load_{name}.log'
             
             result = self.v8_tool.load_external_processor(
@@ -239,11 +242,12 @@ class DataProcessorConverter(BaseConverter):
             )
         
         # Создаем временные директории
+        assert self.temp_dir is not None, "temp_dir должен быть инициализирован"
         temp_xml = self.temp_dir / 'tmp_xml'
-        temp_xml.mkdir(exist_ok=True)
+        _ = temp_xml.mkdir(exist_ok=True)
         
         edt_workspace = self.temp_dir / 'edt_ws'
-        edt_workspace.mkdir(exist_ok=True)
+        _ = edt_workspace.mkdir(exist_ok=True)
         
         try:
             # Этап 1: Экспорт EDT -> XML

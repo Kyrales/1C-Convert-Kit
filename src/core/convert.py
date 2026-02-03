@@ -15,45 +15,11 @@ _SCRIPT_DIR = Path(__file__).parent.parent
 if str(_SCRIPT_DIR) not in sys.path:
     sys.path.insert(0, str(_SCRIPT_DIR))
 
+# Импортируем Logger из базового конвертера
+from converters.base.converter import Logger  # type: ignore
 
-# ANSI цветовые коды для Windows
-class Colors:
-    """Цветовые коды для консоли"""
-    GREEN: str = '\033[92m'
-    RED: str = '\033[91m'
-    YELLOW: str = '\033[93m'
-    RESET: str = '\033[0m'
-    
-    @staticmethod
-    def enable_windows_colors():
-        """Включает поддержку ANSI цветов в Windows"""
-        if sys.platform == 'win32':
-            try:
-                import ctypes
-                kernel32 = ctypes.windll.kernel32
-                kernel32.SetConsoleMode(kernel32.GetStdHandle(-11), 7)
-            except Exception:
-                pass
-
-
-def print_info(message: str) -> None:
-    """Выводит информационное сообщение зеленым цветом"""
-    print(f"{Colors.GREEN}[ИНФО]{Colors.RESET} {message}")
-
-
-def print_error(message: str) -> None:
-    """Выводит сообщение об ошибке красным цветом"""
-    print(f"{Colors.RED}[ОШИБКА]{Colors.RESET} {message}")
-
-
-def print_warning(message: str) -> None:
-    """Выводит предупреждение желтым цветом"""
-    print(f"{Colors.YELLOW}[ВНИМАНИЕ]{Colors.RESET} {message}")
-
-
-def print_success(message: str) -> None:
-    """Выводит сообщение об успехе зеленым цветом"""
-    print(f"{Colors.GREEN}[УСПЕХ]{Colors.RESET} {message}")
+# Создаем глобальный экземпляр логгера для CLI
+logger = Logger(silent=False, debug=False)
 
 
 def load_env_file(env_path: str, silent: bool = False) -> Optional[Dict[str, str]]:
@@ -71,11 +37,11 @@ def load_env_file(env_path: str, silent: bool = False) -> Optional[Dict[str, str
     
     if not os.path.exists(env_path):
         if not silent:
-            print_error(f"Файл .env не найден: {env_path}")
+            logger.error(f"Файл .env не найден: {env_path}")
         return None
     
     if not silent:
-        print_info(f"Чтение переменных окружения из: {env_path}")
+        logger.info(f"Чтение переменных окружения из: {env_path}")
     
     with open(env_path, 'r', encoding='utf-8') as f:
         for line in f:
@@ -106,22 +72,22 @@ def find_env_files(path: str) -> List[str]:
         if path_obj.suffix == '.env' or path_obj.name.endswith('.env'):
             return [str(path_obj)]
         else:
-            print_error(f"Файл {path_obj} не является .env файлом")
+            logger.error(f"Файл {path_obj} не является .env файлом")
             return []
     
     # Если это каталог, ищем все .env файлы
     if path_obj.is_dir():
         env_files = sorted(path_obj.glob('*.env'))
         if env_files:
-            print_info(f"Найдено {len(env_files)} .env файлов в каталоге {path_obj}:")
+            logger.info(f"Найдено {len(env_files)} .env файлов в каталоге {path_obj}:")
             for env_file in env_files:
-                print_info(f"  - {env_file.name}")
+                logger.info(f"  - {env_file.name}")
             return [str(f) for f in env_files]
         else:
-            print_error(f"Не найдено .env файлов в каталоге {path_obj}")
+            logger.error(f"Не найдено .env файлов в каталоге {path_obj}")
             return []
     
-    print_error(f"Путь не существует: {path_obj}")
+    logger.error(f"Путь не существует: {path_obj}")
     return []
 
 
@@ -149,14 +115,14 @@ def merge_env_files(env_files: List[str], silent: bool = False) -> Optional[Dict
         for key, value in env_vars.items():
             if key in merged_vars and merged_vars[key] != value:
                 if not silent:
-                    print_info(f"Параметр '{key}' переопределен: '{merged_vars[key]}' -> '{value}'")
+                    logger.info(f"Параметр '{key}' переопределен: '{merged_vars[key]}' -> '{value}'")
         
         # Объединяем, переопределяя существующие значения
         # Более поздние файлы (вложенные) имеют приоритет
         merged_vars.update(env_vars)
     
     if len(env_files) > 1 and not silent:
-        print_info(f"Объединено {len(env_files)} файлов конфигурации")
+        logger.info(f"Объединено {len(env_files)} файлов конфигурации")
     
     return merged_vars
 
@@ -184,12 +150,12 @@ def run_conversion(env_files: List[str], output_path: Optional[str] = None, debu
     # Переопределяем путь назначения если передан
     if output_path:
         env_vars['V8_DST_PATH'] = os.path.abspath(output_path)
-        print_info(f"Используется переданный путь назначения: {output_path}")
+        logger.info(f"Используется переданный путь назначения: {output_path}")
     
     # Получаем тип конвертации из ScriptName
     script_name = env_vars.get('ScriptName')
     if not script_name:
-        print_error("Переменная ScriptName не определена в .env файлах")
+        logger.error("Переменная ScriptName не определена в .env файлах")
         return 1
     
     # Получаем конвертер из реестра
@@ -199,27 +165,27 @@ def run_conversion(env_files: List[str], output_path: Optional[str] = None, debu
     converter_class = registry.get_converter(script_name)
     
     if not converter_class:
-        print_error(f"Конвертер для '{script_name}' не найден")
-        print_error(f"Доступные конвертеры: {', '.join(registry.list_converters())}")
+        logger.error(f"Конвертер для '{script_name}' не найден")
+        logger.error(f"Доступные конвертеры: {', '.join(registry.list_converters())}")
         return 1
     
-    print_info(f"Используется Python конвертер: {converter_class.__name__}")
+    logger.info(f"Используется Python конвертер: {converter_class.__name__}")
     
     # Получаем пути из переменных окружения
     src_path = env_vars.get('V8_SRC_PATH', '')
     dst_path = env_vars.get('V8_DST_PATH', '')
     
     if not src_path:
-        print_error("Переменная V8_SRC_PATH не определена в .env файле")
+        logger.error("Переменная V8_SRC_PATH не определена в .env файле")
         return 1
     
     if not dst_path:
-        print_error("Путь назначения не указан (V8_DST_PATH в .env или параметр --output)")
+        logger.error("Путь назначения не указан (V8_DST_PATH в .env или параметр --output)")
         return 1
     
-    print_info("Запуск конвертации...")
-    print_info(f"Источник: {src_path}")
-    print_info(f"Назначение: {dst_path}")
+    logger.info("Запуск конвертации...")
+    logger.info(f"Источник: {src_path}")
+    logger.info(f"Назначение: {dst_path}")
     
     # Создаем и запускаем конвертер
     try:
@@ -233,22 +199,22 @@ def run_conversion(env_files: List[str], output_path: Optional[str] = None, debu
             if dst_path_obj.exists():
                 if dst_path_obj.is_file():
                     print()
-                    print_success(f"Конвертация завершена успешно: {dst_path}")
-                    print_info(f"Размер файла: {dst_path_obj.stat().st_size / (1024 * 1024):.2f} МБ")
+                    logger.success(f"Конвертация завершена успешно: {dst_path}")
+                    logger.info(f"Размер файла: {dst_path_obj.stat().st_size / (1024 * 1024):.2f} МБ")
                 else:
                     print()
-                    print_success(f"Конвертация завершена успешно")
-                    print_info(f"Результаты сохранены в: {dst_path}")
+                    logger.success(f"Конвертация завершена успешно")
+                    logger.info(f"Результаты сохранены в: {dst_path}")
             else:
                 print()
-                print_success("Конвертация завершена успешно")
+                logger.success("Конвертация завершена успешно")
             
             # Очистка уже выполнена внутри converter.convert() в зависимости от V8_TEMP_AFTER_CLEAN
         
         return exit_code
         
     except Exception as e:
-        print_error(f"Ошибка при выполнении конвертации: {e}")
+        logger.error(f"Ошибка при выполнении конвертации: {e}")
         import traceback
         traceback.print_exc()
         return 1
@@ -256,9 +222,6 @@ def run_conversion(env_files: List[str], output_path: Optional[str] = None, debu
 
 def main() -> None:
     """Главная функция"""
-    # Включаем поддержку цветов в Windows
-    Colors.enable_windows_colors()
-    
     parser = argparse.ArgumentParser(
         description='Конвертация файлов 1С (обработки, отчеты, конфигурации, расширения)',
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -306,11 +269,11 @@ def main() -> None:
     
     if not project_path_arg:
         # Если путь не указан, ищем все .env в папке projects
-        print_info(f"Параметр --env не указан, поиск .env файлов в: {projects_dir}")
+        logger.info(f"Параметр --env не указан, поиск .env файлов в: {projects_dir}")
         env_files = find_env_files(str(projects_dir))
         
         if not env_files:
-            print_error("Не найдено ни одного .env файла")
+            logger.error("Не найдено ни одного .env файла")
             sys.exit(1)
         
         all_env_files.extend(env_files)
@@ -322,10 +285,10 @@ def main() -> None:
             project_path = Path(os.getcwd()) / project_path
         
         if not project_path.exists():
-            print_error(f"Папка проекта не существует: {project_path}")
+            logger.error(f"Папка проекта не существует: {project_path}")
             sys.exit(1)
         
-        print_info(f"Папка проекта: {project_path}")
+        logger.info(f"Папка проекта: {project_path}")
         
         # 1. Сначала ищем базовый .env в папке projects/
         # Ищем любой .env файл в корне projects/ (не в подпапках)
@@ -333,21 +296,21 @@ def main() -> None:
         if base_env_files:
             # Берем первый найденный (или можно отсортировать)
             base_env = base_env_files[0]
-            print_info(f"Найден базовый .env: {base_env}")
+            logger.info(f"Найден базовый .env: {base_env}")
             all_env_files.append(str(base_env))
         else:
-            print_warning(f"Базовый .env файл не найден в: {projects_dir}")
+            logger.warning(f"Базовый .env файл не найден в: {projects_dir}")
         
         # 2. Затем ищем все .env файлы в папке проекта
         project_env_files = find_env_files(str(project_path))
         if not project_env_files:
-            print_error(f"Не найдено .env файлов в папке проекта: {project_path}")
+            logger.error(f"Не найдено .env файлов в папке проекта: {project_path}")
             sys.exit(1)
         
         all_env_files.extend(project_env_files)
     
     if not all_env_files:
-        print_error("Не найдено ни одного .env файла для обработки")
+        logger.error("Не найдено ни одного .env файла для обработки")
         sys.exit(1)
     
     # Запускаем конвертацию
