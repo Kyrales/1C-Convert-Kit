@@ -692,52 +692,18 @@ class ConfigurationConverter(BaseConverter):
                 
                 # Затем импортируем XML в EDT
                 edt_workspace = self.temp_dir / 'edt_ws'
-                _ = edt_workspace.mkdir(exist_ok=True)
                 
-                _ = self.temp_dir / 'import_edt.log'  # Переменная не используется, но зарезервирована
-                
-                # Используем edtcli для импорта
-                if self.edt_tool.use_edtcli:
-                    cmd = [
-                        str(self.edt_tool.tool_path),
-                        '-data', str(edt_workspace),
-                        '-command', 'import',
-                        '--project', str(output_dir),
-                        '--configuration-files', str(temp_xml)
-                    ]
-                elif self.edt_tool.use_ring:
-                    edt_version = self.env_vars.get('V8_EDT_VERSION', '2025.1.5')
-                    cmd = [
-                        str(self.edt_tool.tool_path),
-                        f'edt@{edt_version}',
-                        'workspace', 'import',
-                        '--project', str(output_dir),
-                        '--configuration-files', str(temp_xml),
-                        '--workspace-location', str(edt_workspace)
-                    ]
-                else:
-                    raise ToolNotFoundError("EDT инструмент не определен")
-                
-                result = subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
-                    encoding='cp1251',
-                    errors='replace',
-                    shell=self.edt_tool.use_ring
+                # Используем метод из EdtToolWrapper
+                result = self.edt_tool.import_configuration_files_to_edt_project(
+                    xml_source_path=temp_xml,
+                    edt_project_path=output_dir,
+                    workspace_path=edt_workspace,
+                    entity_type="конфигурации"
                 )
                 
-                if result.returncode != 0:
+                if result != 0:
                     raise ToolExecutionError(
                         "Ошибка при импорте конфигурации в EDT",
-                        temp_dir=self.temp_dir
-                    )
-                
-                # Проверяем что EDT проект создан
-                project_file = output_dir / '.project'
-                if not project_file.exists():
-                    raise ToolExecutionError(
-                        f"Файл .project не создан: {project_file}",
                         temp_dir=self.temp_dir
                     )
                 

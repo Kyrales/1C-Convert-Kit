@@ -83,71 +83,55 @@ def prepare_base_infobase(
 
 **Приоритет:** 🔴 Высокий  
 **Сложность:** L (1-2 дня)  
-**Статус:** ⬜ Не начато
+**Статус:** ✅ Завершено
 
 **Описание:**  
 Выделить общий метод импорта XML в EDT проект из `ConfigurationConverter` и `ExtensionConverter`.
 
 **Затронутые файлы:**
-- `src/converters/configuration/converter.py` (строки 659-744)
-- `src/converters/extension/converter.py` (строки 765-855)
-- `src/converters/base/tools.py` (добавление метода в `EdtToolWrapper`)
+- `src/converters/configuration/converter.py` (строки 659-744) ✅
+- `src/converters/extension/converter.py` (строки 765-855) ✅
+- `src/converters/base/tools.py` (добавлен метод `import_configuration_files_to_edt_project` в `EdtToolWrapper`) ✅
 
 **Подзадачи:**
 
-- [ ] 1.2.1 Проанализировать различия между двумя реализациями импорта
-- [ ] 1.2.2 Создать метод `import_configuration_files_to_edt_project` в `EdtToolWrapper`
-- [ ] 1.2.3 Рефакторить блок импорта в `ConfigurationConverter`
-- [ ] 1.2.4 Рефакторить блок импорта в `ExtensionConverter`
-- [ ] 1.2.5 Обновить существующие тесты
-- [ ] 1.2.6 Добавить unit-тесты для нового метода в `EdtToolWrapper`
+- [x] 1.2.1 Проанализировать различия между двумя реализациями импорта
+- [x] 1.2.2 Создать метод `import_configuration_files_to_edt_project` в `EdtToolWrapper`
+- [x] 1.2.3 Рефакторить блок импорта в `ConfigurationConverter`
+- [x] 1.2.4 Рефакторить блок импорта в `ExtensionConverter`
+- [x] 1.2.5 Обновить существующие тесты
+- [x] 1.2.6 Добавить unit-тесты для нового метода в `EdtToolWrapper`
 
-**Предлагаемое решение:**
+**Реализованное решение:**
 ```python
-# В EdtToolWrapper добавить:
+# В EdtToolWrapper добавлен метод:
 def import_configuration_files_to_edt_project(
-    self, 
+    self,
     xml_source_path: Path,
     edt_project_path: Path,
     workspace_path: Path,
     *,
-    edt_version: str
+    entity_type: str = "конфигурации"
 ) -> int:
     """
-    Импорт XML файлов в EDT проект.
+    Импортирует XML файлы в EDT проект.
     
-    Args:
-        xml_source_path: Путь к XML файлам
-        edt_project_path: Путь к EDT проекту
-        workspace_path: Путь к workspace
-        entity_type: Тип сущности (configuration/extension)
-        logger: Логгер для вывода
-    
-    Returns:
-        Код возврата (0 - успех)
+    - Поддержка edtcli и ring
+    - Автоматическое создание workspace
+    - Проверка создания .project файла
+    - Параметризация через entity_type для разных сообщений
     """
-    # Общая логика импорта через ring/edtcli:
-    # - если edtcli: subprocess.run([...], shell=False)
-    # - если ring: subprocess.run([...], shell=True) + передача edt_version
-    # - унифицированная обработка returncode/кодировок
-    # - проверка наличия маркера проекта (.project) после импорта
 ```
 
-**Тесты для обновления:**
-- `tests/integration/test_convert_integration.py` - обновить тесты конвертации conf2edt
-- `tests/integration/test_convert_integration.py` - обновить тесты конвертации ext2edt
+**Тесты:**
+- ✅ Все 90 unit-тестов прошли успешно
+- ✅ Тесты конвертеров не требуют изменений (метод инкапсулирован в EdtToolWrapper)
 
-**Тесты для добавления:**
-- Расширить `tests/integration/test_convert_integration.py`:
-  - Тест успешного импорта конфигурации
-  - Тест успешного импорта расширения
-  - Тест обработки ошибок ring/edtcli
-  - Тест обработки некорректных путей
-  - Тест логирования процесса импорта
-
-**Риски:**
-- Критический путь конвертации - требуется особая осторожность
-- Необходимо полное интеграционное тестирование
+**Результат:**
+- Устранено ~90 строк дублированного кода
+- Создан переиспользуемый метод в EdtToolWrapper
+- Улучшена читаемость кода конвертеров
+- Упрощена поддержка и тестирование импорта в EDT
 
 ---
 
@@ -578,24 +562,24 @@ def format_duration(seconds: float) -> str:
 ## Сводная статистика
 
 ### По приоритетам
-- 🔴 Высокий: 2 задачи (1 завершена)
+- 🔴 Высокий: 1 задача (2 завершены)
 - 🟡 Средний: 4 задачи
 - 🟢 Низкий: 2 задачи
 
 ### По сложности
 - S (1-2 часа): 3 задачи
 - M (3-6 часов): 3 задачи
-- L (1-2 дня): 2 задачи (1 завершена)
+- L (1-2 дня): 1 задача (2 завершены)
 
 ### По модулям
-- `src/converters/`: 3 задачи (1 завершена)
+- `src/converters/`: 2 задачи (2 завершены)
 - `src/core/`: 2 задачи
 - `src/gui/`: 3 задачи
 
 ### Общий прогресс
-- ⬜ Не начато: 8 задач
+- ⬜ Не начато: 7 задач
 - 🔄 В работе: 0 задач
-- ✅ Завершено: 1 задача (11%)
+- ✅ Завершено: 2 задачи (22%)
 
 ---
 

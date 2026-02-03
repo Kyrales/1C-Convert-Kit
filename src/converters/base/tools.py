@@ -884,6 +884,97 @@ class EdtToolWrapper(ToolWrapper):
             
         except subprocess.SubprocessError as e:
             raise ToolExecutionError(f"Ошибка запуска EDT инструмента: {e}")
+    
+    def import_configuration_files_to_edt_project(
+        self,
+        xml_source_path: Path,
+        edt_project_path: Path,
+        workspace_path: Path,
+        *,
+        entity_type: str = "конфигурации"
+    ) -> int:
+        """
+        Импортирует XML файлы в EDT проект.
+        
+        Args:
+            xml_source_path: Путь к XML файлам
+            edt_project_path: Путь к EDT проекту (будет создан)
+            workspace_path: Путь к workspace EDT
+            entity_type: Тип сущности для сообщений (конфигурации/расширения)
+        
+        Returns:
+            int: Код возврата (0 - успех)
+            
+        Raises:
+            ToolNotFoundError: Если инструмент не найден
+            ToolExecutionError: Если выполнение завершилось с ошибкой
+        """
+        if not self.is_available():
+            raise ToolNotFoundError("EDT инструмент (ring/edtcli) не найден в системе")
+        
+        self.logger.info(f"Импорт {entity_type} в EDT проект...")
+        
+        # Создаем директории если не существуют
+        workspace_path.mkdir(parents=True, exist_ok=True)
+        
+        # Формируем команду в зависимости от инструмента
+        if self.use_edtcli:
+            # Используем edtcli
+            # Команда: 1cedtcli.exe -data <workspace> -command import --project <project> --configuration-files <xml>
+            cmd = [
+                str(self.tool_path),
+                '-data', str(workspace_path),
+                '-command', 'import',
+                '--project', str(edt_project_path),
+                '--configuration-files', str(xml_source_path)
+            ]
+        elif self.use_ring:
+            # Используем ring
+            # Команда: ring.bat edt@<version> workspace import --project <project> --configuration-files <xml> --workspace-location <workspace>
+            edt_version = self.env_vars.get('V8_EDT_VERSION', '2025.1.5')
+            cmd = [
+                str(self.tool_path),
+                f'edt@{edt_version}',
+                'workspace', 'import',
+                '--project', str(edt_project_path),
+                '--configuration-files', str(xml_source_path),
+                '--workspace-location', str(workspace_path)
+            ]
+        else:
+            raise ToolNotFoundError("EDT инструмент не определен")
+        
+        # Выводим команду в режиме отладки
+        self._log_command(cmd)
+        
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding='cp1251',
+                errors='replace',
+                shell=self.use_ring  # ring.bat требует shell=True на Windows
+            )
+            
+            if result.returncode != 0:
+                raise ToolExecutionError(
+                    f"Ошибка при импорте {entity_type} в EDT",
+                    tool_output=result.stderr or result.stdout
+                )
+            
+            # Проверяем что EDT проект создан
+            project_file = edt_project_path / '.project'
+            if not project_file.exists():
+                raise ToolExecutionError(
+                    f"Файл .project не создан: {project_file}",
+                    tool_output=result.stdout
+                )
+            
+            self.logger.success(f"Импорт {entity_type} в EDT завершен успешно")
+            return result.returncode
+            
+        except subprocess.SubprocessError as e:
+            raise ToolExecutionError(f"Ошибка запуска EDT инструмента: {e}")
 
 
 
