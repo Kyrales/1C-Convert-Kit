@@ -7,7 +7,10 @@
 import subprocess
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    import subprocess
 
 from .converter import Logger, ToolNotFoundError, ToolExecutionError
 
@@ -71,7 +74,7 @@ class ToolWrapper(ABC):
         pass
     
     @abstractmethod
-    def execute(self, *args: str, **kwargs: str) -> "subprocess.CompletedProcess[str]":
+    def execute(self, *args: str, **kwargs: str) -> subprocess.CompletedProcess[str]:
         """
         Выполняет команду инструмента.
         
@@ -118,7 +121,7 @@ class V8ToolWrapper(ToolWrapper):
                 return tool_path
         
         # Ищем по версии V8_VERSION
-        version = self.env_vars.get('V8_VERSION', '8.3.23.2040')
+        version = self.env_vars.get('V8_VERSION', '8.3.27.1989')
         default_path = Path(f"C:/Program Files/1cv8/{version}/bin/1cv8.exe")
         if default_path.exists():
             return default_path
@@ -130,7 +133,7 @@ class V8ToolWrapper(ToolWrapper):
         
         return None
     
-    def _append_ib_credentials(self, cmd: list) -> None:
+    def _append_ib_credentials(self, cmd: List[str]) -> None:
         """
         Добавляет учетные данные к команде 1cv8.exe.
         
@@ -147,7 +150,7 @@ class V8ToolWrapper(ToolWrapper):
         if ib_pwd:
             cmd.extend([f'/P{ib_pwd}'])
     
-    def execute(self, *args: str, **kwargs: str) -> "subprocess.CompletedProcess[str]":
+    def execute(self, *args: str, **kwargs: str) -> subprocess.CompletedProcess[str]:
         """
         Выполняет команду 1cv8.exe.
         
@@ -209,7 +212,7 @@ class V8ToolWrapper(ToolWrapper):
             # Проверяем лог на ошибки и предупреждения
             if log_file.exists():
                 from .converter import ToolOutputParser
-                errors, warnings = ToolOutputParser.parse_designer_log(log_file, self.logger)
+                errors, _ = ToolOutputParser.parse_designer_log(log_file, self.logger)
                 if errors:
                     error_msg = '\n'.join(errors)
                     raise ToolExecutionError(
@@ -293,7 +296,7 @@ class V8ToolWrapper(ToolWrapper):
             # Проверяем лог на ошибки и предупреждения
             if log_file.exists():
                 from .converter import ToolOutputParser
-                errors, warnings = ToolOutputParser.parse_designer_log(log_file, self.logger)
+                errors, _ = ToolOutputParser.parse_designer_log(log_file, self.logger)
                 if errors:
                     error_msg = '\n'.join(errors)
                     raise ToolExecutionError(
@@ -376,7 +379,7 @@ class V8ToolWrapper(ToolWrapper):
             # Проверяем лог на ошибки и предупреждения
             if log_file.exists():
                 from .converter import ToolOutputParser
-                errors, warnings = ToolOutputParser.parse_designer_log(log_file, self.logger)
+                errors, _ = ToolOutputParser.parse_designer_log(log_file, self.logger)
                 if errors:
                     error_msg = '\n'.join(errors)
                     raise ToolExecutionError(
@@ -461,7 +464,7 @@ class V8ToolWrapper(ToolWrapper):
             # Проверяем лог на ошибки и предупреждения
             if log_file.exists():
                 from .converter import ToolOutputParser
-                errors, warnings = ToolOutputParser.parse_designer_log(log_file, self.logger)
+                errors, _ = ToolOutputParser.parse_designer_log(log_file, self.logger)
                 if errors:
                     error_msg = '\n'.join(errors)
                     raise ToolExecutionError(
@@ -496,7 +499,7 @@ class IbcmdToolWrapper(ToolWrapper):
                 return tool_path
         
         # Ищем по версии V8_VERSION
-        version = self.env_vars.get('V8_VERSION', '8.3.23.2040')
+        version = self.env_vars.get('V8_VERSION', '8.3.27.1989')
         default_path = Path(f"C:/Program Files/1cv8/{version}/bin/ibcmd.exe")
         if default_path.exists():
             return default_path
@@ -508,7 +511,7 @@ class IbcmdToolWrapper(ToolWrapper):
         
         return None
     
-    def execute(self, *args: str, **kwargs: str) -> "subprocess.CompletedProcess[str]":
+    def execute(self, *args: str, **kwargs: str) -> subprocess.CompletedProcess[str]:
         """
         Выполняет команду ibcmd.exe.
         
@@ -709,7 +712,7 @@ class EdtToolWrapper(ToolWrapper):
     
     def find_tool(self) -> Optional[Path]:
         """
-        Находит ring или edtcli в системе.
+        Находит 1cedtcli или ring  в системе.
         
         Returns:
             Path или None: Путь к инструменту или None если не найден
@@ -779,7 +782,7 @@ class EdtToolWrapper(ToolWrapper):
         
         return None
     
-    def execute(self, *args: str, **kwargs: str) -> "subprocess.CompletedProcess[str]":
+    def execute(self, *args: str, **kwargs: str) -> subprocess.CompletedProcess[str]:
         """
         Выполняет команду EDT инструмента.
         
@@ -791,7 +794,7 @@ class EdtToolWrapper(ToolWrapper):
             CompletedProcess[str]: Результат выполнения команды
         """
         if not self.is_available():
-            raise ToolNotFoundError("EDT инструмент (ring/edtcli) не найден в системе")
+            raise ToolNotFoundError("EDT инструмент (1cedtcli/ring) не найден в системе")
         
         # Реализация будет добавлена позже
         raise NotImplementedError("Метод execute будет реализован в следующих задачах")
@@ -818,7 +821,7 @@ class EdtToolWrapper(ToolWrapper):
             ToolExecutionError: Если выполнение завершилось с ошибкой
         """
         if not self.is_available():
-            raise ToolNotFoundError("EDT инструмент (ring/edtcli) не найден в системе")
+            raise ToolNotFoundError("EDT инструмент (1cedtcli/ring) не найден в системе")
         
         self.logger.info(f"Экспорт EDT проекта в XML...")
         
@@ -917,7 +920,7 @@ class EdtToolWrapper(ToolWrapper):
             ToolExecutionError: Если выполнение завершилось с ошибкой
         """
         if not self.is_available():
-            raise ToolNotFoundError("EDT инструмент (ring/edtcli) не найден в системе")
+            raise ToolNotFoundError("EDT инструмент (1cedtcli/ring) не найден в системе")
         
         self.logger.info(f"Импорт {entity_type} в EDT проект...")
         

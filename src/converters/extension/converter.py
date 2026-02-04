@@ -194,7 +194,7 @@ class ExtensionConverter(BaseConverter):
         # Проверяем доступность EDT инструмента
         if not self.edt_tool.is_available():
             raise ToolNotFoundError(
-                "EDT инструмент (ring/edtcli) не найден. " +
+                "EDT инструмент (1cedtcli/ring) не найден. " +
                 "Установите EDT или укажите путь в переменной RING_TOOL/EDT_TOOL"
             )
         
@@ -567,7 +567,7 @@ class ExtensionConverter(BaseConverter):
         
         if target_format == "EDT" and not self.edt_tool.is_available():
             raise ToolNotFoundError(
-                "EDT инструмент (ring/edtcli) не найден. " +
+                "EDT инструмент (1cedtcli/ring) не найден. " +
                 "Установите EDT или укажите путь в переменной RING_TOOL/EDTCLI_TOOL"
             )
         

@@ -1,7 +1,21 @@
 #!/usr/bin/env python
 # -*- coding: utf-8 -*-
 """
-Скрипт конвертации обработки 1С из EDT в EPF формат
+Ядро системы конвертации 1С файлов
+
+Обеспечивает:
+- Загрузку и объединение .env конфигураций
+- Интеграцию с ConverterRegistry для автоматического выбора конвертера
+- CLI интерфейс для запуска конвертаций из командной строки
+- Поддержку всех типов конвертации:
+  * Конфигурации (EDT/XML/IB → CF)
+  * Обработки и отчеты (EDT/XML → EPF/ERF)
+  * Расширения (EDT/XML/IB → CFE)
+  * Валидация EDT проектов
+
+Использование CLI:
+    python src/core/convert.py --env projects/MyProject/project.env
+    python src/core/convert.py --env projects/MyProject/project.env --output /path/to/output
 """
 
 import os
@@ -26,12 +40,18 @@ def load_env_file(env_path: str, silent: bool = False) -> Optional[Dict[str, str
     """
     Загружает переменные из .env файла
     
+    Поддерживает:
+    - UTF-8 с BOM и без BOM
+    - Fallback на CP1251 для старых файлов
+    - Комментарии (строки начинающиеся с #)
+    - Значения в кавычках (одинарных и двойных)
+    
     Args:
         env_path: путь к .env файлу
         silent: если True, не выводить сообщения (для GUI)
         
     Returns:
-        dict: словарь с переменными окружения
+        dict: словарь с переменными окружения, или None при ошибке
     """
     env_vars: Dict[str, str] = {}
     
@@ -43,14 +63,35 @@ def load_env_file(env_path: str, silent: bool = False) -> Optional[Dict[str, str
     if not silent:
         logger.info(f"Чтение переменных окружения из: {env_path}")
     
-    with open(env_path, 'r', encoding='utf-8') as f:
-        for line in f:
-            line = line.strip()
-            if line and not line.startswith('#') and '=' in line:
-                key, value = line.split('=', 1)
-                # Убираем кавычки если есть
-                value = value.strip('"').strip("'")
-                env_vars[key.strip()] = value
+    # Пробуем разные кодировки
+    encodings = ['utf-8-sig', 'utf-8', 'cp1251']
+    content = None
+    
+    for encoding in encodings:
+        try:
+            with open(env_path, 'r', encoding=encoding) as f:
+                content = f.read()
+            break
+        except (UnicodeDecodeError, LookupError):
+            continue
+    
+    if content is None:
+        if not silent:
+            logger.error(f"Не удалось прочитать файл {env_path} ни в одной из кодировок: {encodings}")
+        return None
+    
+    # Парсим содержимое
+    for line in content.splitlines():
+        line = line.strip()
+        if line and not line.startswith('#') and '=' in line:
+            key, value = line.split('=', 1)
+            key = key.strip()
+            value = value.strip()
+            # Убираем кавычки если есть (одинарные или двойные)
+            if (value.startswith('"') and value.endswith('"')) or \
+               (value.startswith("'") and value.endswith("'")):
+                value = value[1:-1]
+            env_vars[key] = value
     
     return env_vars
 

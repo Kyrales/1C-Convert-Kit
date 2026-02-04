@@ -28,7 +28,7 @@
 - `V8_BASE_CONFIG` - путь к базовой конфигурации (для создания ИБ)
 - `V8_CONVERT_TOOL` - инструмент конвертации (`designer` или `ibcmd`, по умолчанию `designer`)
 - `V8_TOOL` - путь к 1cv8.exe
-- `V8_VERSION` - версия платформы 1С (по умолчанию `8.3.23.2040`)
+- `V8_VERSION` - версия платформы 1С (по умолчанию `8.3.27.1989`)
 - `IBCMD_TOOL` - путь к ibcmd.exe
 - `RING_TOOL` - путь к ring.bat
 - `EDT_TOOL` - путь к 1cedtcli.exe
@@ -43,7 +43,7 @@
 ScriptName=conf2cf
 V8_SRC_PATH=C:/Projects/MyConfiguration
 V8_DST_PATH=C:/Output/MyConfiguration.cf
-V8_VERSION=8.3.23.2040
+V8_VERSION=8.3.27.1989
 ```
 
 ### Пример 2: XML → CF
@@ -82,7 +82,7 @@ V8_DST_PATH=C:/Projects/MyConfiguration
 ## Последовательность конвертации
 
 ### EDT → CF
-1. Экспорт EDT проекта в XML (через ring/edtcli)
+1. Экспорт EDT проекта в XML (через 1cedtcli/ring)
 2. Создание временной информационной базы
 3. Загрузка конфигурации из XML в ИБ
 4. Выгрузка конфигурации из ИБ в CF файл
@@ -96,13 +96,13 @@ V8_DST_PATH=C:/Projects/MyConfiguration
 1. Выгрузка конфигурации из ИБ в CF файл
 
 ### EDT → XML
-1. Экспорт EDT проекта в XML (через ring/edtcli)
+1. Экспорт EDT проекта в XML (через 1cedtcli/ring)
 
 ### CF → EDT
 1. Создание временной информационной базы
 2. Загрузка конфигурации из CF в ИБ
 3. Выгрузка конфигурации из ИБ в XML
-4. Импорт XML в EDT проект (через ring/edtcli)
+4. Импорт XML в EDT проект (через 1cedtcli/ring)
 
 ## Особенности
 
@@ -124,7 +124,7 @@ V8_DST_PATH=C:/Projects/MyConfiguration
 
 ```env
 V8_CONVERT_TOOL=designer
-V8_TOOL=C:/Program Files/1cv8/8.3.23.2040/bin/1cv8.exe
+V8_TOOL=C:/Program Files/1cv8/8.3.27.1989/bin/1cv8.exe
 ```
 
 ### ibcmd
@@ -173,7 +173,7 @@ from converters.configuration import ConfigurationConverter
 env_vars = {
     'V8_SRC_PATH': 'C:/Projects/MyConfiguration',
     'V8_DST_PATH': 'C:/Output/MyConfiguration.cf',
-    'V8_VERSION': '8.3.23.2040'
+    'V8_VERSION': '8.3.27.1989'
 }
 
 converter = ConfigurationConverter(env_vars)

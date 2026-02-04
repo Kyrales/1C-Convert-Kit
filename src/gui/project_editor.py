@@ -11,11 +11,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .project_scanner import ProjectDict
 
-try:
-    import FreeSimpleGUI as sg  # type: ignore
-except ImportError:
-    import PySimpleGUI as sg  # type: ignore
-
+from .sg_import import sg
 from ..core.convert import load_env_file
 from .constants import COLORS, PROJECTS_DIR
 

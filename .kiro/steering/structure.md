@@ -43,7 +43,7 @@ GUI модули на базе FreeSimpleGUI:
   - ToolWrapper - базовый класс
   - V8ToolWrapper - работа с 1cv8.exe (designer)
   - IbcmdToolWrapper - работа с ibcmd.exe
-  - EdtToolWrapper - работа с ring/edtcli
+  - EdtToolWrapper - работа с 1cedtcli/ring
 
 #### Реестр конвертеров
 - `registry.py` - ConverterRegistry
@@ -217,7 +217,7 @@ from converters.configuration.converter import ConfigurationConverter
 env_vars = {
     'V8_SRC_PATH': '/path/to/edt/project',
     'V8_DST_PATH': '/path/to/output.cf',
-    'V8_VERSION': '8.3.23.2040',
+    'V8_VERSION': '8.3.27.1989',
     # ... другие параметры
 }
 

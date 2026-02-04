@@ -136,8 +136,8 @@ class MyTool(ToolWrapper):
 from converters.base.tools import V8ToolWrapper
 
 tool = V8ToolWrapper(
-    tool_path='C:/Program Files/1cv8/8.3.23.2040/bin/1cv8.exe',
-    version='8.3.23.2040'
+    tool_path='C:/Program Files/1cv8/8.3.27.1989/bin/1cv8.exe',
+    version='8.3.27.1989'
 )
 
 # Создание информационной базы
@@ -205,7 +205,7 @@ exit_code = tool.dump_cf(
 
 ### EdtToolWrapper
 
-Обёртка для работы с ring/edtcli:
+Обёртка для работы с 1cedtcli/ring:
 
 ```python
 from converters.base.tools import EdtToolWrapper
@@ -294,7 +294,7 @@ class MyConverter(BaseConverter):
 
 ### Опциональные:
 - `V8_TEMP` - директория для временных файлов (по умолчанию `temp/`)
-- `V8_VERSION` - версия платформы 1С (по умолчанию `8.3.23.2040`)
+- `V8_VERSION` - версия платформы 1С (по умолчанию `8.3.27.1989`)
 - `V8_TOOL` - путь к 1cv8.exe
 - `IBCMD_TOOL` - путь к ibcmd.exe
 - `RING_TOOL` - путь к ring.bat

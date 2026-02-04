@@ -6,9 +6,16 @@
 
 from __future__ import annotations
 
+import sys
 from typing import TypedDict
 from pathlib import Path
 
+# Добавляем корневую директорию проекта в sys.path для корректных импортов
+_SCRIPT_DIR = Path(__file__).parent.parent
+if str(_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_SCRIPT_DIR))
+
+from core.convert import load_env_file  # type: ignore
 from .constants import PROJECTS_DIR
 
 
@@ -84,26 +91,26 @@ class ProjectScanner:
         """
         Читает ScriptName и V8_DST_PATH из .env файла
         
+        Использует общую функцию load_env_file из core.convert
+        для единообразного парсинга с поддержкой BOM и различных кодировок.
+        
         Args:
             env_file: путь к .env файлу
             
         Returns:
             tuple: (script_name, dst_path)
         """
-        script_name = ''
-        dst_path = ''
-        
         try:
-            with open(env_file, 'r', encoding='utf-8') as f:
-                for line in f:
-                    line = line.strip()
-                    if line.startswith('ScriptName='):
-                        value = line.split('=', 1)[1]
-                        script_name = value.strip('"').strip("'")
-                    elif line.startswith('V8_DST_PATH='):
-                        value = line.split('=', 1)[1]
-                        dst_path = value.strip('"').strip("'")
+            # Используем общую функцию парсинга с silent=True для GUI
+            env_data = load_env_file(str(env_file), silent=True)
+            
+            if env_data is None:
+                return '', ''
+            
+            script_name = env_data.get('ScriptName', '')
+            dst_path = env_data.get('V8_DST_PATH', '')
+            
+            return script_name, dst_path
         except Exception:
-            pass
-        
-        return script_name, dst_path
+            # Молча игнорируем ошибки в GUI
+            return '', ''

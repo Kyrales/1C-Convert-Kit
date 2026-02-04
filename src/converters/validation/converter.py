@@ -11,8 +11,7 @@ from ..base.converter import (
     BaseConverter,
     SourceType,
     ValidationError,
-    ToolNotFoundError,
-    ToolExecutionError
+    ToolNotFoundError
 )
 from ..base.tools import EdtToolWrapper
 
@@ -22,7 +21,7 @@ class ValidationConverter(BaseConverter):
     Конвертер для валидации EDT проектов 1С.
     
     Выполняет валидацию EDT проектов с использованием EDT инструментов
-    (ring или edtcli). Не создает выходных файлов, только проверяет
+    (1cedtcli или ring). Не создает выходных файлов, только проверяет
     корректность проекта.
     
     Args:
@@ -120,14 +119,17 @@ class ValidationConverter(BaseConverter):
         # Проверяем доступность EDT инструмента
         if not self.edt_tool.is_available():
             raise ToolNotFoundError(
-                "EDT инструмент (ring/edtcli) не найден. " +
+                "EDT инструмент (1cedtcli/ring) не найден. " +
                 "Установите EDT или укажите путь в переменной RING_TOOL/EDT_TOOL"
             )
         
         try:
             # Создаем временную директорию для workspace
+            if self.temp_dir is None:
+                raise ValidationError("Временная директория не инициализирована")
+            
             edt_workspace = self.temp_dir / 'edt_ws'
-            edt_workspace.mkdir(exist_ok=True)
+            _ = edt_workspace.mkdir(exist_ok=True)
             
             self.log_info("Запуск валидации EDT проекта...")
             self.report_progress("Выполнение валидации", 20)

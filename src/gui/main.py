@@ -7,11 +7,7 @@ GUI для конвертера 1С файлов в стиле Cyberpunk
 
 import sys
 
-try:
-    import FreeSimpleGUI as sg  # type: ignore
-except ImportError:
-    import PySimpleGUI as sg  # type: ignore
-
+from .sg_import import sg
 from .constants import CONVERT_SCRIPT
 from .main_window import CyberpunkGUI
 

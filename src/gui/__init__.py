@@ -10,6 +10,7 @@ from .project_editor import ProjectEditorDialog
 from .conversion_runner import ConversionRunner
 from .constants import VERSION, COLORS
 from .utils import format_duration
+from .sg_import import sg
 
 __all__ = [
     'CyberpunkGUI',
@@ -18,5 +19,6 @@ __all__ = [
     'ConversionRunner',
     'VERSION',
     'COLORS',
-    'format_duration'
+    'format_duration',
+    'sg'
 ]

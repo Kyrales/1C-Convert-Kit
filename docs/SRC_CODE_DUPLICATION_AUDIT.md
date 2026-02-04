@@ -17,7 +17,7 @@
 
 - **Импорт XML → EDT (почти полностью одинаковый блок)**  
   Где: [ConfigurationConverter, блок импорта в EDT](file:///f:/1C/Projects/1c-convert-kit/src/converters/configuration/converter.py#L659-L744), [ExtensionConverter, блок импорта в EDT](file:///f:/1C/Projects/1c-convert-kit/src/converters/extension/converter.py#L765-L855)  
-  Почему критично: это “критический путь” конвертации; любая доработка (например, параметры `ring/edtcli`, логирование, обработка кодировок/retcode) должна быть синхронной.  
+  Почему критично: это “критический путь” конвертации; любая доработка (например, параметры `1cedtcli/ring`, логирование, обработка кодировок/retcode) должна быть синхронной.  
   Что сделать: выделить общий метод “import_configuration_files_to_edt_project(...)” (например, в `EdtToolWrapper` или общий helper в `converters/base/tools.py`) и использовать его в обоих конвертерах.
 
 ### Средняя критичность

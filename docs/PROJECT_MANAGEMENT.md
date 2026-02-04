@@ -137,7 +137,7 @@
 ScriptName=conf2cf
 V8_DST_PATH=output.cf
 V8_SRC_PATH=C:\Projects\MyConfig
-V8_VERSION=8.3.23.2040
+V8_VERSION=8.3.27.1989
 ```
 
 - Параметр `ScriptName` всегда первый

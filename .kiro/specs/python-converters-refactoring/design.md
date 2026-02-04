@@ -198,7 +198,7 @@ class V8ToolWrapper(ToolWrapper):
                 return tool_path
         
         # Ищем по версии V8_VERSION
-        version = self.env_vars.get('V8_VERSION', '8.3.23.2040')
+        version = self.env_vars.get('V8_VERSION', '8.3.27.1989')
         default_path = Path(f"C:/Program Files/1cv8/{version}/bin/1cv8.exe")
         if default_path.exists():
             return default_path
@@ -238,7 +238,7 @@ class IbcmdToolWrapper(ToolWrapper):
                 return tool_path
         
         # Ищем по версии V8_VERSION
-        version = self.env_vars.get('V8_VERSION', '8.3.23.2040')
+        version = self.env_vars.get('V8_VERSION', '8.3.27.1989')
         default_path = Path(f"C:/Program Files/1cv8/{version}/bin/ibcmd.exe")
         if default_path.exists():
             return default_path

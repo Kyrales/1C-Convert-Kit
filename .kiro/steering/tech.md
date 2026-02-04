@@ -3,7 +3,7 @@
 ## Язык и среда выполнения
 
 - **Python 3.7+** - Основной язык
-- **1С:Предприятие** - Инструменты конвертации (designer, ibcmd, ring/edtcli)
+- **1С:Предприятие** - Инструменты конвертации (designer, ibcmd, 1cedtcli/ring)
 
 ## Зависимости
 
@@ -100,7 +100,7 @@ mypy src/
 **Tool Wrappers** - абстракции инструментов 1С:
 - `V8ToolWrapper` - работа с 1cv8.exe (designer)
 - `IbcmdToolWrapper` - работа с ibcmd.exe
-- `EdtToolWrapper` - работа с ring/edtcli
+- `EdtToolWrapper` - работа с 1cedtcli/ring
 
 ### Специализированные конвертеры
 

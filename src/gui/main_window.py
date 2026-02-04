@@ -15,11 +15,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from .project_scanner import ProjectDict
 
-try:
-    import FreeSimpleGUI as sg  # type: ignore
-except ImportError:
-    import PySimpleGUI as sg  # type: ignore
-
+from .sg_import import sg
 from ..core.convert import load_env_file
 from .constants import VERSION, COLORS, SCRIPT_DIR, PROJECTS_DIR, PARAMS_DESC_FILE
 from .project_scanner import ProjectScanner
@@ -691,6 +687,60 @@ class CyberpunkGUI:
         )
         self.conversion_thread.start()
     
+    def _create_project_pipeline(
+        self,
+        project_name: str,
+        script_name: str,
+        params: dict[str, str],
+        success_message: str
+    ) -> bool:
+        """
+        Общий pipeline создания проекта.
+        
+        Args:
+            project_name: Имя проекта
+            script_name: Тип скрипта (ScriptName)
+            params: Параметры для .env файла
+            success_message: Сообщение об успехе
+        
+        Returns:
+            True если успешно, False при ошибке
+        """
+        project_folder = PROJECTS_DIR / project_name
+        
+        try:
+            # 1. Создать папку проекта
+            project_folder.mkdir(parents=True, exist_ok=False)
+            
+            # 2. Создать .env файл
+            env_filename = f"{self._sanitize_filename(project_name)}_{script_name}.env"
+            env_path = project_folder / env_filename
+            self._save_env_file(env_path, params)  # type: ignore[arg-type]
+            
+            # 3. Пересканировать проекты
+            self.scan_projects()
+            
+            # 4. Выбрать новый проект в таблице
+            for idx, project in enumerate(self.projects):
+                if project['name'] == project_name:
+                    self.selected_row = idx
+                    break
+            
+            # 5. Обновить таблицу
+            self.update_table()
+            
+            # 6. Показать сообщение об успехе
+            _ = self.log_output.print(f'✓ {success_message}\n',  # type: ignore[attr-defined, union-attr]
+                                 text_color=COLORS['success'], end='')
+            
+            return True
+            
+        except Exception as e:
+            _ = sg.popup_error(f'Ошибка создания проекта: {e}',  # type: ignore[attr-defined]
+                          background_color=COLORS['bg'],
+                          text_color=COLORS['error'])
+            return False
+    
     def _add_project(self) -> None:
         """Добавляет новый проект"""
         existing_names = [p['name'] for p in self.projects]
@@ -704,41 +754,17 @@ class CyberpunkGUI:
         result = dialog.show()
         
         if result:
-            # Создаем папку проекта
             project_name = str(result['name'])
-            project_folder = PROJECTS_DIR / project_name
+            script_name = str(result['script'])
+            params = result['params']
             
-            try:
-                project_folder.mkdir(parents=True, exist_ok=False)
-                
-                # Создаем .env файл
-                script_name = str(result['script'])
-                env_filename = f"{self._sanitize_filename(project_name)}_{script_name}.env"
-                env_path = project_folder / env_filename
-                
-                params = result['params']
-                if isinstance(params, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in params.items()):
-                    # Type narrowing: params is dict[str, str]
-                    self._save_env_file(env_path, params)  # type: ignore[arg-type]
-                
-                # Обновляем список проектов
-                self.scan_projects()
-                
-                # Находим и выбираем новый проект
-                for idx, project in enumerate(self.projects):
-                    if project['name'] == project_name:
-                        self.selected_row = idx
-                        break
-                
-                self.update_table()
-                
-                _ = self.log_output.print(f'✓ Проект "{project_name}" успешно создан\n',  # type: ignore[attr-defined, union-attr]
-                                     text_color=COLORS['success'], end='')
-            
-            except Exception as e:
-                _ = sg.popup_error(f'Ошибка создания проекта: {e}',  # type: ignore[attr-defined]
-                              background_color=COLORS['bg'],
-                              text_color=COLORS['error'])
+            if isinstance(params, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in params.items()):
+                self._create_project_pipeline(
+                    project_name=project_name,
+                    script_name=script_name,
+                    params=params,  # type: ignore[arg-type]
+                    success_message=f'Проект "{project_name}" успешно создан'
+                )
     
     def _edit_project(self) -> None:
         """Изменяет существующий проект"""
@@ -827,41 +853,17 @@ class CyberpunkGUI:
         result = dialog.show()
         
         if result:
-            # Создаем папку проекта
             project_name = str(result['name'])
-            project_folder = PROJECTS_DIR / project_name
+            script_name = str(result['script'])
+            params = result['params']
             
-            try:
-                project_folder.mkdir(parents=True, exist_ok=False)
-                
-                # Создаем .env файл
-                script_name = str(result['script'])
-                env_filename = f"{self._sanitize_filename(project_name)}_{script_name}.env"
-                env_path = project_folder / env_filename
-                
-                params = result['params']
-                if isinstance(params, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in params.items()):
-                    # Type narrowing: params is dict[str, str]
-                    self._save_env_file(env_path, params)  # type: ignore[arg-type]
-                
-                # Обновляем список проектов
-                self.scan_projects()
-                
-                # Находим и выбираем новый проект
-                for idx, project in enumerate(self.projects):
-                    if project['name'] == project_name:
-                        self.selected_row = idx
-                        break
-                
-                self.update_table()
-                
-                _ = self.log_output.print(f'✓ Проект "{project_name}" успешно скопирован\n',  # type: ignore[attr-defined, union-attr]
-                                     text_color=COLORS['success'], end='')
-            
-            except Exception as e:
-                _ = sg.popup_error(f'Ошибка копирования проекта: {e}',  # type: ignore[attr-defined]
-                              background_color=COLORS['bg'],
-                              text_color=COLORS['error'])
+            if isinstance(params, dict) and all(isinstance(k, str) and isinstance(v, str) for k, v in params.items()):
+                self._create_project_pipeline(
+                    project_name=project_name,
+                    script_name=script_name,
+                    params=params,  # type: ignore[arg-type]
+                    success_message=f'Проект "{project_name}" успешно скопирован'
+                )
     
     def _delete_project(self) -> None:
         """Удаляет проект"""
