@@ -44,7 +44,7 @@ IF defined ENV_FILE IF "%V8_SKIP_ENV%" neq "1" (
     )
 )
 
-IF not defined V8_VERSION set V8_VERSION=8.3.23.2040
+IF not defined V8_VERSION set V8_VERSION=8.3.27.1989
 IF not defined V8_TEMP set V8_TEMP=%TEMP%\1c
 
 echo [INFO] Using 1C:Enterprise, version %V8_VERSION%

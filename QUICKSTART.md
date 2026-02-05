@@ -1,205 +1,293 @@
-# 🚀 Быстрый старт - 1c-convert-kit
+# 🚀 Быстрый старт - 1C Convert Kit
 
-## Текущий статус проекта
-
-✅ Структура создана
-✅ Файлы скопированы
-⚠️ Требуется адаптация кода (см. TODO.md)
+Начните работу с 1C Convert Kit за 5 минут!
 
 ---
 
-## Что нужно сделать СЕЙЧАС
+## Установка за 3 шага
 
-### 1. Откройте проект в редакторе
-```bash
-cd f:\1C\Projects\1c-convert-kit
-code .  # или другой редактор
-```
-
-### 2. Выполните критические задачи из TODO.md
-
-#### Задача 1: Адаптация src/gui/main.py
-
-Откройте `src/gui/main.py` и замените:
-
-```python
-# БЫЛО:
-from convert import load_env_file
-
-SCRIPT_DIR = Path(__file__).parent
-PROJECTS_DIR = SCRIPT_DIR
-CONVERT_SCRIPT = SCRIPT_DIR / 'convert.py'
-PARAMS_DESC_FILE = SCRIPT_DIR / 'params_descriptions.json'
-
-# СТАЛО:
-from ..core.convert import load_env_file
-
-SCRIPT_DIR = Path(__file__).parent.parent.parent  # Корень проекта
-PROJECTS_DIR = SCRIPT_DIR / 'projects'
-CONVERT_SCRIPT = SCRIPT_DIR / 'src' / 'core' / 'convert.py'
-PARAMS_DESC_FILE = SCRIPT_DIR / 'src' / 'config' / 'params_descriptions.json'
-```
-
-#### Задача 2: Адаптация src/core/convert.py
-
-Откройте `src/core/convert.py` и найдите функцию `run_conversion()`.
-
-Замените строку:
-```python
-# БЫЛО:
-script_dir = Path(__file__).parent / 'scripts'
-
-# СТАЛО:
-script_dir = Path(__file__).parent.parent / 'converters'
-```
-
-Добавьте функцию поиска legacy скриптов (после импортов):
-```python
-def find_legacy_script(script_name: str) -> Optional[Path]:
-    """Находит legacy CMD скрипт в соответствующей папке"""
-    converters_dir = Path(__file__).parent.parent / 'converters'
-    
-    # Определяем тип скрипта по имени
-    if script_name.startswith('conf'):
-        legacy_dir = converters_dir / 'configuration' / 'legacy'
-    elif script_name.startswith('dp'):
-        legacy_dir = converters_dir / 'dataprocessor' / 'legacy'
-    elif script_name.startswith('ext'):
-        legacy_dir = converters_dir / 'extension' / 'legacy'
-    elif script_name.startswith('edt'):
-        legacy_dir = converters_dir / 'validation' / 'legacy'
-    else:
-        return None
-    
-    script_path = legacy_dir / script_name
-    return script_path if script_path.exists() else None
-```
-
-Замените в функции `run_conversion()`:
-```python
-# БЫЛО:
-conversion_script = script_dir / script_name
-
-# СТАЛО:
-conversion_script = find_legacy_script(script_name)
-```
-
-Также найдите строку с поиском базового .env:
-```python
-# БЫЛО:
-script_dir = Path(__file__).parent
-
-# СТАЛО:
-script_dir = Path(__file__).parent.parent.parent / 'projects'
-```
-
-### 3. Установите зависимости
+### 1. Клонирование и установка зависимостей
 
 ```bash
+git clone https://github.com/username/1c-convert-kit.git
+cd 1c-convert-kit
 pip install -r requirements.txt
 ```
 
-### 4. Запустите GUI
+### 2. Настройка базовой конфигурации (опционально)
 
 ```bash
+# Windows
+copy src\config\base.env.template projects\base.env
+
+# Linux/Mac
+cp src/config/base.env.template projects/base.env
+```
+
+Отредактируйте `projects/base.env`:
+```ini
+# Версия 1С:Предприятие
+V8_VERSION=8.3.27.1989
+
+# Путь к 1cv8.exe
+V8_TOOL_PATH="C:\Program Files\1cv8\8.3.27.1989\bin\1cv8.exe"
+
+# Путь к EDT (1cedtcli или ring)
+EDT_TOOL_PATH="f:\1C\Projects\EDT\installations\1C_EDT 2025.1\1cedt\1cedtcli.exe"
+```
+
+### 3. Запуск
+
+```bash
+# Windows
 run_gui.cmd
+
+# Linux/Mac
+./run_gui.sh
+
+# Или напрямую
+python src/gui/main.py
 ```
 
-или
+---
+
+## Первая конвертация
+
+### Через GUI (рекомендуется)
+
+#### Пример: Конвертация конфигурации EDT → CF
+
+1. **Создайте проект**
+   - Нажмите кнопку **"Добавить"**
+   - Заполните поля:
+     - **Имя проекта:** `МояКонфигурация`
+     - **Тип скрипта:** `conf2cf`
+     - **V8_SRC_PATH:** `C:\EDT\MyConfiguration` (путь к EDT проекту)
+     - **V8_DST_PATH:** `C:\Output\MyConfiguration.cf` (путь для CF файла)
+   - Нажмите **"Сохранить"**
+
+2. **Запустите конвертацию**
+   - Выберите проект в таблице (клик по строке)
+   - Нажмите **"ВЫПОЛНИТЬ (F5)"** или клавишу F5
+   - Следите за прогрессом в окне лога
+
+3. **Результат**
+   - При успехе: CF файл создан по указанному пути
+   - При ошибке: проверьте лог и временные файлы в `temp/`
+
+### Через CLI
 
 ```bash
-python src\gui\main.py
+# Создайте папку проекта
+mkdir projects\MyConfig
+
+# Создайте .env файл
+echo ScriptName=conf2cf > projects\MyConfig\config.env
+echo V8_SRC_PATH=C:\EDT\MyConfiguration >> projects\MyConfig\config.env
+echo V8_DST_PATH=C:\Output\MyConfiguration.cf >> projects\MyConfig\config.env
+
+# Запустите конвертацию
+python src\core\convert.py --env projects\MyConfig\config.env
 ```
-
-### 5. Проверьте работоспособность
-
-- [ ] GUI открылся без ошибок
-- [ ] В таблице отображаются проекты из `projects/`
-- [ ] При выборе проекта отображаются детали
-- [ ] Можно запустить конвертацию (выберите тестовый проект)
-- [ ] Лог отображается в реальном времени
 
 ---
 
-## Если что-то не работает
+## Типы конвертаций
 
-### Ошибка импорта
-```
-ModuleNotFoundError: No module named 'core'
-```
-**Решение:** Проверьте, что вы запускаете из корня проекта и исправили импорты в main.py
-
-### Ошибка "Скрипт не найден"
-```
-Скрипт dp2epf.cmd не найден
-```
-**Решение:** Проверьте, что функция `find_legacy_script()` добавлена в convert.py
-
-### Ошибка "Проекты не отображаются"
-```
-Таблица пустая
-```
-**Решение:** Проверьте, что путь PROJECTS_DIR указывает на `SCRIPT_DIR / 'projects'`
-
-### Ошибка "params_descriptions.json не найден"
-```
-FileNotFoundError: params_descriptions.json
-```
-**Решение:** Проверьте путь PARAMS_DESC_FILE в main.py
+| Тип | Описание | Источник | Результат |
+|-----|----------|----------|-----------|
+| `conf2cf` | Конфигурация → CF | EDT/XML/IB | Configuration.cf |
+| `conf2xml` | Конфигурация → XML | EDT/CF/IB | XML файлы |
+| `conf2edt` | Конфигурация → EDT | XML/CF | EDT проект |
+| `dp2epf` | Обработка → EPF | EDT/XML | Processor.epf |
+| `dp2erf` | Отчет → ERF | EDT/XML | Report.erf |
+| `ext2cfe` | Расширение → CFE | EDT/XML/IB | Extension.cfe |
+| `edt-validate` | Валидация EDT | EDT проект | Отчет о проблемах |
 
 ---
 
-## Следующие шаги
+## Структура .env файла
 
-После успешного запуска:
+### Минимальный пример (conf2cf)
 
-1. ✅ Отметьте выполненные задачи в TODO.md
-2. 📚 Создайте документацию (см. TODO.md, раздел "Документация")
-3. 🧪 Добавьте тесты
-4. 🏗️ Начните рефакторинг (по желанию)
+```ini
+# Обязательные параметры
+ScriptName=conf2cf
+V8_SRC_PATH=C:\EDT\MyConfiguration
+V8_DST_PATH=C:\Output\MyConfiguration.cf
+```
+
+### Полный пример с опциональными параметрами
+
+```ini
+# Тип конвертации
+ScriptName=conf2cf
+
+# Пути
+V8_SRC_PATH=C:\EDT\MyConfiguration
+V8_DST_PATH=C:\Output\MyConfiguration.cf
+
+# Версия и инструменты (если не указаны в base.env)
+V8_VERSION=8.3.27.1989
+V8_TOOL_PATH=C:\Program Files\1cv8\8.3.27.1989\bin\1cv8.exe
+EDT_TOOL_PATH=C:\Users\YourName\edt\ring.bat
+
+# Дополнительные параметры
+TEMP_CLEANUP=1                    # Очистка временных файлов (1=да, 0=нет)
+V8_IB_USER=Администратор          # Пользователь ИБ (если требуется)
+V8_IB_PWD=password                # Пароль (если требуется)
+```
+
+---
+
+## Управление проектами через GUI
+
+### Добавление проекта
+1. Кнопка **"Добавить"**
+2. Заполните форму
+3. **"Сохранить"**
+
+### Редактирование проекта
+1. Выберите проект в таблице
+2. Кнопка **"Изменить"**
+3. Внесите изменения
+4. **"Сохранить"**
+
+### Копирование проекта
+1. Выберите проект в таблице
+2. Кнопка **"Копировать"**
+3. Укажите новое имя
+4. **"Сохранить"**
+
+### Удаление проекта
+1. Выберите проект в таблице
+2. Кнопка **"Удалить"**
+3. Подтвердите удаление
+
+### Пакетная конвертация
+1. Выберите несколько проектов (клик по строкам)
+2. Нажмите **"ВЫПОЛНИТЬ (F5)"**
+3. Все выбранные проекты будут обработаны последовательно
 
 ---
 
 ## Полезные команды
 
+### Запуск тестов
+
 ```bash
-# Запуск GUI
-python src\gui\main.py
+# Все unit-тесты
+python -m pytest tests/unit/ -v
 
-# Запуск конвертации через CLI
-python src\core\convert.py --env projects\МойПроект
+# Конкретный тест
+python -m pytest tests/unit/test_registry_complete.py -v
 
-# Запуск тестов (когда будут готовы)
-pytest tests/
+# С покрытием кода
+python -m pytest --cov=src tests/unit/
+```
 
-# Проверка кода
-flake8 src/
+### Проверка кода
+
+```bash
+# Форматирование
 black src/ --check
+
+# Линтинг
+flake8 src/
+
+# Проверка типов
+mypy src/
 ```
 
 ---
 
-## Структура проекта (краткая)
+## Решение проблем
 
+### GUI не запускается
+
+**Ошибка:**
 ```
-1c-convert-kit/
-├── src/
-│   ├── gui/main.py              ← Главный GUI (требует правки)
-│   ├── core/convert.py          ← Логика конвертации (требует правки)
-│   ├── config/
-│   │   └── params_descriptions.json
-│   └── converters/
-│       ├── configuration/legacy/  ← CMD скрипты конфигураций
-│       ├── dataprocessor/legacy/  ← CMD скрипты обработок
-│       ├── extension/legacy/      ← CMD скрипты расширений
-│       └── validation/legacy/     ← CMD скрипты валидации
-├── projects/                    ← Ваши проекты (уже скопированы)
-├── run_gui.cmd                  ← Быстрый запуск
-└── TODO.md                      ← Полный план работ
+ImportError: No module named 'FreeSimpleGUI'
 ```
+
+**Решение:**
+```bash
+pip install FreeSimpleGUI
+```
+
+---
+
+### Конвертация не работает
+
+**Ошибка:**
+```
+Ошибка: Не найден инструмент 1С
+```
+
+**Решение:**
+1. Укажите `V8_TOOL_PATH` в `projects/base.env`
+2. Или укажите в конкретном проекте
+3. Проверьте, что путь существует и файл запускается
+
+---
+
+### Проекты не отображаются
+
+**Проблема:** Таблица в GUI пустая
+
+**Решение:**
+1. Проверьте, что .env файлы находятся в `projects/` или подпапках
+2. Убедитесь, что файлы содержат параметр `ScriptName`
+3. Проверьте кодировку файлов (должна быть UTF-8)
+
+---
+
+### Ошибка при конвертации
+
+**Проблема:** Конвертация завершается с ошибкой
+
+**Решение:**
+1. Проверьте лог в GUI (внизу окна)
+2. Проверьте временные файлы в `temp/` (не удаляются при ошибке)
+3. Проверьте логи в `logs/`
+4. Убедитесь, что пути к источнику и назначению корректны
+
+---
+
+### Временные файлы не удаляются
+
+**Проблема:** Папка `temp/` заполняется
+
+**Решение:**
+1. Добавьте в .env файл: `TEMP_CLEANUP=1`
+2. Или удалите вручную: `rmdir /s /q temp` (Windows)
+3. Временные файлы сохраняются при ошибках для отладки
+
+---
+
+## Дальнейшие шаги
+
+- 📚 Изучите [полную документацию](README.md)
+- 🎨 Настройте [базовую конфигурацию](docs/BASE_ENV_DISPLAY_FEATURE.md)
+- 🏗️ Изучите [архитектуру проекта](README.md#-архитектура)
+- 🧪 Запустите [тесты](tests/README.md)
+- 🤝 Внесите [вклад в проект](README.md#-вклад-в-проект)
+
+---
+
+## Горячие клавиши GUI
+
+| Клавиша | Действие |
+|---------|----------|
+| **F5** | Запустить конвертацию выбранных проектов |
+| **Ctrl+A** | Добавить новый проект |
+| **Ctrl+E** | Редактировать выбранный проект |
+| **Ctrl+C** | Копировать выбранный проект |
+| **Delete** | Удалить выбранный проект |
+| **Ctrl+R** | Обновить список проектов |
 
 ---
 
 **Удачи! 🚀**
 
-Если возникнут вопросы - смотрите TODO.md или README.md
+Если возникнут вопросы - смотрите [README.md](README.md) или создайте [issue](https://github.com/username/1c-convert-kit/issues)
