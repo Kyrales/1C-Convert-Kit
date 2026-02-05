@@ -214,6 +214,10 @@ class DataProcessorConverter(BaseConverter):
             assert self.temp_dir is not None, "temp_dir должен быть инициализирован"
             log_file = self.temp_dir / f'load_{name}.log'
             
+            # Запоминаем время начала конвертации
+            import time
+            start_time = time.time()
+            
             result = self.v8_tool.load_external_processor(
                 ib_connection=ib_connection,
                 xml_file=xml_file,
@@ -227,15 +231,33 @@ class DataProcessorConverter(BaseConverter):
                     temp_dir=self.temp_dir
                 )
             
-            # Проверяем что файл создан
-            output_file = output_dir / f"{name}{extension}"
-            if not output_file.exists():
+            # Ищем файлы с нужным расширением, созданные/измененные после начала конвертации
+            created_files = []
+            if output_dir.exists():
+                for file in output_dir.glob(f"*{extension}"):
+                    if file.stat().st_mtime >= start_time:
+                        created_files.append(file)
+            
+            if not created_files:
+                # Файл не найден - возможно ошибка
+                expected_file = output_dir / f"{name}{extension}"
                 raise ToolExecutionError(
-                    f"Выходной файл не создан: {output_file}",
+                    f"Выходной файл не создан. Ожидался: {expected_file}",
                     temp_dir=self.temp_dir
                 )
             
-            self.log_success(f"Создан файл: {output_file}")
+            # Файл найден
+            created_file = created_files[0]
+            self.log_success(f"Создан файл: {created_file}")
+            
+            # Если имя отличается от ожидаемого, выводим предупреждение
+            expected_file = output_dir / f"{name}{extension}"
+            if created_file.name != expected_file.name:
+                self.log_warning(
+                    f"Имя созданного файла отличается от ожидаемого:\n"
+                    f"  Ожидалось: {expected_file.name}\n"
+                    f"  Создано: {created_file.name}"
+                )
             
             # Обновляем прогресс
             progress = progress_base + int((idx / total_files) * progress_span)
