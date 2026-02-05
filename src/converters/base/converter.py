@@ -132,9 +132,31 @@ class SourceDetector:
         if path_obj.is_dir() and (path_obj / 'DT-INF').exists():
             return SourceType.EDT
         
-        # Проверка на XML файлы
+        # Проверка на XML файлы конфигурации
         if path_obj.is_dir() and (path_obj / 'Configuration.xml').exists():
             return SourceType.XML
+        
+        # Проверка на XML файлы обработок/отчетов
+        # Вариант 1: Указан каталог с XML файлом и подкаталогом с тем же именем
+        if path_obj.is_dir():
+            # Ищем XML файлы в директории
+            xml_files = list(path_obj.glob('*.xml'))
+            if xml_files:
+                # Проверяем, есть ли каталог с таким же именем как у XML файла
+                for xml_file in xml_files:
+                    xml_name = xml_file.stem  # Имя без расширения
+                    matching_dir = path_obj / xml_name
+                    if matching_dir.is_dir():
+                        # Найден паттерн: файл.xml + каталог с именем файла
+                        return SourceType.XML
+        
+        # Вариант 2: Указан путь к самому XML файлу
+        if path_obj.is_file() and path_obj.suffix.lower() == '.xml':
+            # Проверяем наличие каталога с тем же именем рядом
+            xml_name = path_obj.stem
+            matching_dir = path_obj.parent / xml_name
+            if matching_dir.is_dir():
+                return SourceType.XML
         
         # Проверка на файловую ИБ
         if path_obj.is_dir() and (path_obj / '1cv8.1cd').exists():

@@ -135,6 +135,10 @@ class DataProcessorConverter(BaseConverter):
         """
         Находит все файлы обработок и отчетов в XML директории.
         
+        Поддерживает две структуры:
+        1. EDT структура: ExternalDataProcessors/*.xml и ExternalReports/*.xml
+        2. Обычная XML структура: файл.xml + каталог файл/ в той же директории
+        
         Args:
             xml_path: Путь к директории с XML файлами
             
@@ -143,23 +147,38 @@ class DataProcessorConverter(BaseConverter):
         """
         files = []
         
-        # Ищем обработки в ExternalDataProcessors
+        # Вариант 1: EDT структура (приоритетная проверка)
         processors_dir = xml_path / 'ExternalDataProcessors'
-        if processors_dir.exists():
-            for xml_file in processors_dir.glob('*.xml'):
-                # Имя файла без расширения
-                name = xml_file.stem
-                files.append((xml_file, '.epf', name))
-                self.log_info(f"Найдена обработка: {name}")
-        
-        # Ищем отчеты в ExternalReports
         reports_dir = xml_path / 'ExternalReports'
-        if reports_dir.exists():
-            for xml_file in reports_dir.glob('*.xml'):
-                # Имя файла без расширения
+        
+        has_edt_structure = processors_dir.exists() or reports_dir.exists()
+        
+        if has_edt_structure:
+            # Ищем обработки в ExternalDataProcessors
+            if processors_dir.exists():
+                for xml_file in processors_dir.glob('*.xml'):
+                    name = xml_file.stem
+                    files.append((xml_file, '.epf', name))
+                    self.log_info(f"Найдена обработка (EDT): {name}")
+            
+            # Ищем отчеты в ExternalReports
+            if reports_dir.exists():
+                for xml_file in reports_dir.glob('*.xml'):
+                    name = xml_file.stem
+                    files.append((xml_file, '.erf', name))
+                    self.log_info(f"Найден отчет (EDT): {name}")
+        else:
+            # Вариант 2: Обычная XML структура
+            # Ищем все XML файлы в директории
+            for xml_file in xml_path.glob('*.xml'):
                 name = xml_file.stem
-                files.append((xml_file, '.erf', name))
-                self.log_info(f"Найден отчет: {name}")
+                # Проверяем наличие каталога с таким же именем
+                matching_dir = xml_path / name
+                if matching_dir.is_dir():
+                    # По умолчанию считаем обработкой (.epf)
+                    # TODO: можно добавить определение типа по содержимому XML
+                    files.append((xml_file, '.epf', name))
+                    self.log_info(f"Найдена обработка (XML): {name}")
         
         return files
     

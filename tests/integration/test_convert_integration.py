@@ -527,6 +527,7 @@ class TestConversionIntegration:
         - Наличие EDT проекта конфигурации
         - Наличие EDT проекта расширения
         - Наличие EDT проекта обработки
+        - Наличие XML обработки
         - Наличие CF файла конфигурации
         - Наличие CFE файла расширения
         - Корректную структуру проектов
@@ -552,6 +553,14 @@ class TestConversionIntegration:
         assert (dp_project / 'src').exists(), "Папка src не найдена в обработке"
         assert (dp_project / 'DT-INF').exists(), "Папка DT-INF не найдена в обработке"
         
+        # Проверяем обработку (XML)
+        dp_xml_project = project_root / 'tests' / 'fixtures' / 'epf' / 'ТестоваяОбработка_xml'
+        assert dp_xml_project.exists(), f"XML обработка не найдена: {dp_xml_project}"
+        xml_file = dp_xml_project / 'ТестоваяОбработка.xml'
+        assert xml_file.exists(), f"XML файл обработки не найден: {xml_file}"
+        xml_dir = dp_xml_project / 'ТестоваяОбработка'
+        assert xml_dir.exists(), f"Каталог обработки не найден: {xml_dir}"
+        
         # Проверяем конфигурацию (CF)
         conf_cf = project_root / 'tests' / 'fixtures' / 'edt_xml' / 'demo_otus_edt.cf'
         assert conf_cf.exists(), f"CF файл конфигурации не найден: {conf_cf}"
@@ -565,8 +574,152 @@ class TestConversionIntegration:
         print(f"\n[OK] EDT проект конфигурации найден: {conf_project.name}")
         print(f"[OK] EDT проект расширения найден: {ext_project.name}")
         print(f"[OK] EDT проект обработки найден: {dp_project.name}")
+        print(f"[OK] XML обработка найдена: {dp_xml_project.name}")
         print(f"[OK] CF файл конфигурации найден: {conf_cf.name}")
         print(f"[OK] CFE файл расширения найден: {ext_cfe.name}")
+    
+    def test_dp2epf_xml_conversion(self):
+        """
+        Тест конвертации XML обработки в EPF файл
+        
+        Проверяет:
+        - Успешное выполнение конвертации из XML формата
+        - Создание выходного .epf файла
+        - Размер файла больше 0
+        - Корректное определение типа источника (XML)
+        """
+        # Arrange: подготовка путей к .env файлам
+        base_env = project_root / 'tests' / 'fixtures' / 'base_test.env'
+        project_env = project_root / 'tests' / 'fixtures' / 'test_dp2epf_xml.env'
+        
+        # Проверяем наличие исходных файлов
+        assert base_env.exists(), f"Базовый .env не найден: {base_env}"
+        assert project_env.exists(), f"Проектный .env не найден: {project_env}"
+        
+        # Проверяем наличие исходного XML проекта обработки
+        src_path = project_root / 'tests' / 'fixtures' / 'epf' / 'ТестоваяОбработка_xml'
+        assert src_path.exists(), f"Исходный XML проект обработки не найден: {src_path}"
+        
+        xml_file = src_path / 'ТестоваяОбработка.xml'
+        assert xml_file.exists(), f"XML файл обработки не найден: {xml_file}"
+        
+        xml_dir = src_path / 'ТестоваяОбработка'
+        assert xml_dir.exists(), f"Каталог обработки не найден: {xml_dir}"
+        
+        # Act: выполняем конвертацию
+        env_files = [str(base_env), str(project_env)]
+        exit_code = run_conversion(env_files)
+        
+        # Assert: проверяем результат
+        assert exit_code == 0, "Конвертация завершилась с ошибкой"
+        
+        # Проверяем создание выходного файла
+        output_file = project_root / 'tests' / 'fixtures' / 'output' / 'ТестоваяОбработка.epf'
+        assert output_file.exists(), f"Выходной .epf файл не создан: {output_file}"
+        
+        # Проверяем размер файла
+        file_size = output_file.stat().st_size
+        assert file_size > 0, "Выходной файл пустой"
+        assert file_size > 512, f"Выходной файл слишком маленький: {file_size} байт"
+        
+        print(f"\n[OK] XML обработка успешно сконвертирована")
+        print(f"[OK] Размер файла: {file_size / 1024:.2f} КБ")
+
+
+    def test_dp2epf_xml_with_base_ib_conversion(self):
+        """
+        Тест конвертации XML обработки в EPF файл с использованием базовой ИБ
+        
+        Проверяет:
+        - Создание тестовой базовой ИБ
+        - Успешное выполнение конвертации из XML формата с V8_BASE_IB
+        - Создание выходного .epf файла
+        - Размер файла больше 0
+        - Очистку тестовой базы после теста
+        """
+        # Arrange: подготовка путей
+        base_ib_dir = project_root / 'tests' / 'fixtures' / 'base_ib'
+        base_ib_path = base_ib_dir / 'base_ib'  # prepare_base_infobase создаст эту папку
+        
+        try:
+            # Создаем директорию для базы
+            base_ib_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Загружаем базовый env для получения V8_TOOL
+            base_env = project_root / 'tests' / 'fixtures' / 'base_test.env'
+            assert base_env.exists(), f"Базовый .env не найден: {base_env}"
+            
+            env_vars = load_env_file(str(base_env), silent=True)
+            
+            # Создаем тестовую базовую ИБ используя готовую функцию
+            print(f"\n[ПОДГОТОВКА] Создание тестовой базовой ИБ...")
+            
+            from converters.base.tools import prepare_base_infobase, V8ToolWrapper
+            from converters.base.converter import Logger
+            
+            logger = Logger(silent=False)
+            v8_tool = V8ToolWrapper(env_vars, logger)
+            
+            # Создаем пустую ИБ (base_ib=None, base_config=None)
+            ib_connection = prepare_base_infobase(
+                base_ib=None,
+                base_config=None,
+                temp_dir=base_ib_dir,
+                v8_tool=v8_tool,
+                logger=logger,
+                entity_type="тестовых обработок"
+            )
+            
+            print(f"[OK] Тестовая ИБ создана: {ib_connection}")
+            
+            # Проверяем что база создана
+            assert base_ib_path.exists(), f"Тестовая ИБ не создана: {base_ib_path}"
+            assert (base_ib_path / '1Cv8.1CD').exists(), "Файл 1Cv8.1CD не найден в тестовой ИБ"
+            
+            # Подготовка путей к .env файлам для конвертации
+            project_env = project_root / 'tests' / 'fixtures' / 'test_dp2epf_xml.env'
+            assert project_env.exists(), f"Проектный .env не найден: {project_env}"
+            
+            # Проверяем наличие исходного XML проекта обработки
+            src_path = project_root / 'tests' / 'fixtures' / 'epf' / 'ТестоваяОбработка_xml'
+            assert src_path.exists(), f"Исходный XML проект обработки не найден: {src_path}"
+            
+            # Загружаем env и добавляем V8_BASE_IB
+            env_vars_conversion = merge_env_files([str(base_env), str(project_env)], silent=True)
+            env_vars_conversion['V8_BASE_IB'] = f"/F{base_ib_path}"
+            
+            print(f"\n[КОНВЕРТАЦИЯ] Запуск конвертации с базовой ИБ...")
+            print(f"V8_BASE_IB: {env_vars_conversion['V8_BASE_IB']}")
+            
+            # Act: выполняем конвертацию напрямую через конвертер
+            from converters.dataprocessor.converter import DataProcessorConverter
+            
+            converter = DataProcessorConverter(env_vars_conversion, silent=False)
+            converter.validate()
+            exit_code = converter.convert()
+            
+            # Assert: проверяем результат
+            assert exit_code == 0, "Конвертация завершилась с ошибкой"
+            
+            # Проверяем создание выходного файла
+            output_file = project_root / 'tests' / 'fixtures' / 'output' / 'ТестоваяОбработка.epf'
+            assert output_file.exists(), f"Выходной .epf файл не создан: {output_file}"
+            
+            # Проверяем размер файла
+            file_size = output_file.stat().st_size
+            assert file_size > 0, "Выходной файл пустой"
+            assert file_size > 512, f"Выходной файл слишком маленький: {file_size} байт"
+            
+            print(f"\n[OK] XML обработка успешно сконвертирована с базовой ИБ")
+            print(f"[OK] Размер файла: {file_size / 1024:.2f} КБ")
+            print(f"[OK] Использована базовая ИБ: {base_ib_path}")
+        
+        finally:
+            # Cleanup: удаляем тестовую базу
+            print(f"\n[ОЧИСТКА] Удаление тестовой базовой ИБ...")
+            if base_ib_dir.exists():
+                shutil.rmtree(base_ib_dir)
+                print(f"[OK] Тестовая ИБ удалена: {base_ib_dir}")
 
 
 if __name__ == '__main__':

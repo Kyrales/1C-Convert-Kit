@@ -1,0 +1,12 @@
+﻿<?xml version="1.0" encoding="UTF-8"?>
+<ConfigDumpInfo xmlns="http://v8.1c.ru/8.3/xcf/dumpinfo" xmlns:xen="http://v8.1c.ru/8.3/xcf/enums" xmlns:xs="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" format="Hierarchical" version="2.20">
+	<ConfigVersions>
+		<Metadata name="Catalog.Справочник1" id="e186dde6-3d99-42e1-8c58-275d44f7c8ff" configVersion="3645eb9ef995c548b13e72a700ddc8ef00000000"/>
+		<Metadata name="Catalog.Справочник2" id="7308099e-e295-4bc2-8502-54580fc70469" configVersion="4ea92215ddcc1d49a5fbabc342c1669000000000"/>
+		<Metadata name="Configuration.Конфигурация" id="063f0d2f-b551-4ec1-b4f9-d4cab865633a" configVersion="c4a721eb9d398c42853cd0f4bcd06a8200000000"/>
+		<Metadata name="DataProcessor.Обработка1" id="a1490913-b64f-4f89-8d65-32b8c04507a2" configVersion="35bd7586c97cd24eafb476d653e221cb00000000"/>
+		<Metadata name="DataProcessor.Обработка1.Form.Форма" id="4680cbcd-e817-4c9d-ba38-b1eaa47b419f" configVersion="0d348e738a95cb46bb36b882c73db40700000000"/>
+		<Metadata name="DataProcessor.Обработка1.Form.Форма.Form" id="4680cbcd-e817-4c9d-ba38-b1eaa47b419f.0" configVersion="2f5925b1785fbc4299d20ff30109c59c00000000"/>
+		<Metadata name="Language.Русский" id="874a4b8d-a7a8-4f53-b440-ba6126fc16d8" configVersion="63281956d11b74459daccb73be88677000000000"/>
+	</ConfigVersions>
+</ConfigDumpInfo>
