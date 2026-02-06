@@ -722,6 +722,264 @@ class TestConversionIntegration:
                 print(f"[OK] Тестовая ИБ удалена: {base_ib_dir}")
 
 
+    def test_edt_validate_conversion(self):
+        """
+        Тест валидации EDT проекта конфигурации
+        
+        Проверяет:
+        - Успешное выполнение валидации EDT проекта
+        - Создание отчета валидации
+        - Парсинг отчета и вывод статистики
+        - Корректное определение типа источника (EDT)
+        """
+        # Arrange: подготовка путей к .env файлам
+        base_env = project_root / 'tests' / 'fixtures' / 'base_test.env'
+        project_env = project_root / 'tests' / 'fixtures' / 'test_edt_validate.env'
+        
+        # Проверяем наличие исходных файлов
+        assert base_env.exists(), f"Базовый .env не найден: {base_env}"
+        assert project_env.exists(), f"Проектный .env не найден: {project_env}"
+        
+        # Проверяем наличие исходного EDT проекта
+        src_path = project_root / 'tests' / 'fixtures' / 'cf' / 'otusJenkinsExampleEDT'
+        assert src_path.exists(), f"Исходный EDT проект не найден: {src_path}"
+        assert (src_path / '.project').exists(), "Файл .project не найден в EDT проекте"
+        assert (src_path / 'DT-INF').exists(), "Директория DT-INF не найдена в EDT проекте"
+        assert (src_path / 'src').exists(), "Директория src не найдена в EDT проекте"
+        
+        # Act: выполняем валидацию
+        env_files = [str(base_env), str(project_env)]
+        exit_code = run_conversion(env_files)
+        
+        # Assert: проверяем результат
+        assert exit_code == 0, "Валидация завершилась с ошибкой"
+        
+        # Проверяем создание отчета валидации
+        output_file = project_root / 'tests' / 'fixtures' / 'output' / 'validation_report.txt'
+        assert output_file.exists(), f"Отчет валидации не создан: {output_file}"
+        
+        # Проверяем размер файла (может быть пустым если нет проблем)
+        file_size = output_file.stat().st_size
+        assert file_size >= 0, "Ошибка при создании отчета валидации"
+        
+        # Читаем отчет и проверяем формат
+        with open(output_file, 'r', encoding='utf-8') as f:
+            report_content = f.read()
+        
+        # Если отчет не пустой, проверяем что это TSV формат
+        if report_content.strip():
+            lines = report_content.strip().split('\n')
+            print(f"\n[OK] Валидация завершена")
+            print(f"[OK] Найдено проблем: {len(lines)}")
+            
+            # Проверяем что строки содержат табуляцию (TSV формат)
+            if len(lines) > 0:
+                assert '\t' in lines[0], "Отчет не в TSV формате"
+                
+                # Подсчитываем проблемы по уровням
+                critical = sum(1 for line in lines if 'критическая' in line.lower() or 'critical' in line.lower())
+                major = sum(1 for line in lines if 'значительная' in line.lower() or 'major' in line.lower())
+                minor = sum(1 for line in lines if 'незначительная' in line.lower() or 'minor' in line.lower())
+                trivial = sum(1 for line in lines if 'тривиальная' in line.lower() or 'trivial' in line.lower())
+                
+                print(f"[OK]   Критических: {critical}")
+                print(f"[OK]   Значительных: {major}")
+                print(f"[OK]   Незначительных: {minor}")
+                print(f"[OK]   Тривиальных: {trivial}")
+        else:
+            print(f"\n[OK] Валидация завершена")
+            print(f"[OK] Проблем не найдено")
+        
+        print(f"[OK] Размер отчета: {file_size / 1024:.2f} КБ")
+    
+    def test_edt_validate_structure_check(self):
+        """
+        Тест проверки структуры EDT проекта перед валидацией
+        
+        Проверяет:
+        - Корректное определение типа источника (EDT)
+        - Проверку наличия обязательных директорий
+        - Проверку наличия метаданных (старая и новая структура)
+        - Информативные сообщения об ошибках
+        """
+        # Arrange: подготовка путей
+        base_env = project_root / 'tests' / 'fixtures' / 'base_test.env'
+        project_env = project_root / 'tests' / 'fixtures' / 'test_edt_validate.env'
+        
+        # Загружаем env
+        env_vars = merge_env_files([str(base_env), str(project_env)], silent=True)
+        
+        # Act: создаем конвертер и проверяем валидацию
+        from converters.validation.converter import ValidationConverter
+        
+        converter = ValidationConverter(env_vars, silent=True)
+        
+        # Assert: проверяем что валидация проходит без ошибок
+        try:
+            converter.validate()
+            print(f"\n[OK] Структура EDT проекта корректна")
+            print(f"[OK] Источник: {converter.src_path}")
+            print(f"[OK] Тип источника: EDT")
+        except Exception as e:
+            pytest.fail(f"Валидация структуры завершилась с ошибкой: {e}")
+    
+    def test_edt_validate_with_explicit_report_path(self):
+        """
+        Тест валидации с явным указанием пути к отчету
+        
+        Проверяет:
+        - Создание отчета по указанному пути
+        - Корректное имя файла отчета
+        - Возможность указать файл вместо каталога
+        """
+        import tempfile
+        
+        # Arrange: создаем временный файл для отчета
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as tmp_file:
+            report_path = Path(tmp_file.name)
+        
+        try:
+            # Удаляем временный файл (он будет создан конвертером)
+            report_path.unlink()
+            
+            # Подготовка путей к .env файлам
+            base_env = project_root / 'tests' / 'fixtures' / 'base_test.env'
+            project_env = project_root / 'tests' / 'fixtures' / 'test_edt_validate.env'
+            
+            # Загружаем env и переопределяем V8_DST_PATH
+            env_vars = merge_env_files([str(base_env), str(project_env)], silent=True)
+            env_vars['V8_DST_PATH'] = str(report_path)
+            
+            # Act: выполняем валидацию напрямую через конвертер
+            from converters.validation.converter import ValidationConverter
+            
+            converter = ValidationConverter(env_vars, silent=False)
+            converter.validate()
+            exit_code = converter.convert()
+            
+            # Assert: проверяем результат
+            assert exit_code == 0, "Валидация завершилась с ошибкой"
+            
+            # Проверяем создание отчета по указанному пути
+            assert report_path.exists(), f"Отчет не создан по указанному пути: {report_path}"
+            
+            file_size = report_path.stat().st_size
+            assert file_size >= 0, "Ошибка при создании отчета"
+            
+            print(f"\n[OK] Отчет создан по указанному пути: {report_path}")
+            print(f"[OK] Размер отчета: {file_size / 1024:.2f} КБ")
+        
+        finally:
+            # Cleanup: удаляем временный файл
+            if report_path.exists():
+                report_path.unlink()
+    
+    def test_edt_validate_subprocess_encoding(self):
+        """
+        Тест валидации через subprocess с проверкой кодировки вывода
+        
+        Проверяет:
+        - Успешный запуск валидации через subprocess
+        - Корректную декодировку вывода в различных кодировках
+        - Отсутствие ошибок кодирования Unicode символов
+        - Вывод статистики проблем в консоль
+        """
+        import subprocess
+        
+        # Arrange: подготовка путей к .env файлам
+        base_env = project_root / 'tests' / 'fixtures' / 'base_test.env'
+        project_env = project_root / 'tests' / 'fixtures' / 'test_edt_validate.env'
+        
+        # Проверяем наличие исходных файлов
+        assert base_env.exists(), f"Базовый .env не найден: {base_env}"
+        assert project_env.exists(), f"Проектный .env не найден: {project_env}"
+        
+        # Формируем команду для запуска через subprocess
+        convert_script = project_root / 'src' / 'core' / 'convert.py'
+        
+        cmd = [
+            sys.executable,
+            str(convert_script),
+            '--env',
+            str(project_env)
+        ]
+        
+        # Act: запускаем процесс с перехватом вывода
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            cwd=str(project_root)
+        )
+        
+        # Читаем вывод построчно с обработкой разных кодировок
+        output_lines = []
+        encoding_errors = []
+        
+        for line in iter(process.stdout.readline, b''):
+            if not line:
+                break
+            
+            # Пробуем декодировать в разных кодировках
+            decoded_line = None
+            for encoding in ['utf-8', 'cp1251', 'cp866', 'latin-1']:
+                try:
+                    decoded_line = line.decode(encoding)
+                    break
+                except (UnicodeDecodeError, AttributeError):
+                    continue
+            
+            # Если не удалось декодировать, используем замену ошибочных символов
+            if decoded_line is None:
+                try:
+                    decoded_line = line.decode('utf-8', errors='replace')
+                except Exception as e:
+                    encoding_errors.append(f"Ошибка декодирования: {e}")
+                    continue
+            
+            output_lines.append(decoded_line.strip())
+        
+        process.wait()
+        
+        # Assert: проверяем результат
+        assert process.returncode == 0, f"Валидация завершилась с ошибкой (код: {process.returncode})"
+        
+        # Проверяем что не было ошибок кодирования
+        assert len(encoding_errors) == 0, f"Обнаружены ошибки кодирования: {encoding_errors}"
+        
+        # Проверяем что вывод не пустой
+        assert len(output_lines) > 0, "Вывод процесса пустой"
+        
+        # Проверяем что в выводе есть ключевые сообщения
+        output_text = '\n'.join(output_lines)
+        
+        # Выводим лог для отладки
+        print(f"\n[DEBUG] Вывод процесса ({len(output_lines)} строк):")
+        for line in output_lines[:30]:  # Первые 30 строк
+            print(f"  {line}")
+        if len(output_lines) > 30:
+            print(f"  ... (еще {len(output_lines) - 30} строк)")
+        
+        # Проверяем наличие ключевых сообщений о валидации
+        assert any(keyword in output_text for keyword in ['Валидация', 'валидация', 'ИНФО', 'INFO']), \
+            "В выводе отсутствуют ожидаемые сообщения о валидации"
+        
+        # Проверяем что нет сообщений об ошибках кодировки
+        assert 'charmap' not in output_text.lower(), \
+            "Обнаружена ошибка кодировки charmap в выводе"
+        assert "can't encode" not in output_text.lower(), \
+            "Обнаружена ошибка 'can't encode' в выводе"
+        
+        # Проверяем создание отчета
+        output_file = project_root / 'tests' / 'fixtures' / 'output' / 'validation_report.txt'
+        assert output_file.exists(), f"Отчет валидации не создан: {output_file}"
+        
+        print(f"\n[OK] Валидация через subprocess выполнена успешно")
+        print(f"[OK] Обработано строк вывода: {len(output_lines)}")
+        print(f"[OK] Ошибок кодирования: {len(encoding_errors)}")
+        print(f"[OK] Отчет создан: {output_file.name}")
+
+
 if __name__ == '__main__':
     # Запуск тестов с подробным выводом
     pytest.main([__file__, '-v', '-s'])

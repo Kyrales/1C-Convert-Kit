@@ -65,34 +65,51 @@ class Logger:
         self.debug = debug
         Colors.enable_windows_colors()
     
+    def _safe_print(self, prefix: str, message: str, color: str = Colors.RESET):
+        """
+        Безопасный вывод сообщения с обработкой ошибок кодировки.
+        
+        Args:
+            prefix: Префикс сообщения (например, "[ИНФО]")
+            message: Текст сообщения
+            color: ANSI код цвета для префикса
+        """
+        # Удаляем BOM (\ufeff) и другие проблемные Unicode символы
+        clean_message = message.replace('\ufeff', '').replace('\ufffe', '')
+        
+        # Пытаемся вывести в консоль с обработкой ошибок кодировки
+        try:
+            print(f"{color}{prefix}{Colors.RESET} {clean_message}")
+        except UnicodeEncodeError:
+            # Если не получается, используем замену проблемных символов
+            # Пробуем cp1251 (основная кодировка Windows)
+            try:
+                safe_message = clean_message.encode('cp1251', errors='replace').decode('cp1251')
+                print(f"{color}{prefix}{Colors.RESET} {safe_message}")
+            except Exception:
+                # В крайнем случае используем ASCII с заменой
+                safe_message = clean_message.encode('ascii', errors='replace').decode('ascii')
+                print(f"{color}{prefix}{Colors.RESET} {safe_message}")
+    
     def info(self, message: str):
         """Выводит информационное сообщение."""
         if not self.silent:
-            print(f"{Colors.GREEN}[ИНФО]{Colors.RESET} {message}")
+            self._safe_print("[ИНФО]", message, Colors.GREEN)
     
     def error(self, message: str):
         """Выводит сообщение об ошибке."""
         if not self.silent:
-            # Удаляем BOM (\ufeff) и другие проблемные Unicode символы
-            clean_message = message.replace('\ufeff', '').replace('\ufffe', '')
-            
-            # Пытаемся вывести в консоль с обработкой ошибок кодировки
-            try:
-                print(f"{Colors.RED}[ОШИБКА]{Colors.RESET} {clean_message}")
-            except UnicodeEncodeError:
-                # Если не получается, используем замену проблемных символов
-                safe_message = clean_message.encode('cp1251', errors='replace').decode('cp1251')
-                print(f"{Colors.RED}[ОШИБКА]{Colors.RESET} {safe_message}")
+            self._safe_print("[ОШИБКА]", message, Colors.RED)
     
     def warning(self, message: str):
         """Выводит предупреждение."""
         if not self.silent:
-            print(f"{Colors.YELLOW}[ПРЕДУПРЕЖДЕНИЕ]{Colors.RESET} {message}")
+            self._safe_print("[ПРЕДУПРЕЖДЕНИЕ]", message, Colors.YELLOW)
     
     def success(self, message: str):
         """Выводит сообщение об успехе."""
         if not self.silent:
-            print(f"{Colors.GREEN}[УСПЕХ]{Colors.RESET} {message}")
+            self._safe_print("[УСПЕХ]", message, Colors.GREEN)
     
     def debug_msg(self, message: str):
         """Выводит отладочное сообщение."""
