@@ -15,6 +15,38 @@ if TYPE_CHECKING:
 from .converter import Logger, ToolNotFoundError, ToolExecutionError
 
 
+def format_command_for_log(cmd: List[str]) -> str:
+    """
+    Форматирует команду для вывода в лог.
+    
+    Берет в кавычки аргументы с пробелами, двоеточием и специальными символами.
+    Используется для единообразного логирования команд в режиме отладки.
+    
+    Args:
+        cmd: Список аргументов команды
+        
+    Returns:
+        str: Отформатированная строка команды для CMD
+    """
+    def needs_quotes(arg: str) -> bool:
+        """Проверяет, нужны ли кавычки для аргумента."""
+        # Двоеточие добавлено для путей Windows (C:\path)
+        special_chars = [' ', ':', ';', '&', '|', '<', '>', '^', '(', ')']
+        return any(char in arg for char in special_chars)
+    
+    cmd_parts = []
+    for arg in cmd:
+        arg_str = str(arg)
+        if needs_quotes(arg_str):
+            # Экранируем внутренние кавычки если есть
+            arg_str = arg_str.replace('"', '\\"')
+            cmd_parts.append(f'"{arg_str}"')
+        else:
+            cmd_parts.append(arg_str)
+    
+    return ' '.join(cmd_parts)
+
+
 class ToolWrapper(ABC):
     """
     Базовый класс для оберток инструментов 1С.
@@ -41,25 +73,7 @@ class ToolWrapper(ABC):
             cmd: Список аргументов команды
         """
         if self.logger.debug:
-            # Формируем строку команды для CMD
-            # Правило: берем в кавычки аргументы с пробелами, двоеточием, точкой с запятой или специальными символами
-            def needs_quotes(arg: str) -> bool:
-                """Проверяет, нужны ли кавычки для аргумента."""
-                # Двоеточие добавлено для путей Windows (C:\path)
-                special_chars = [' ', ':', ';', '&', '|', '<', '>', '^', '(', ')']
-                return any(char in arg for char in special_chars)
-            
-            cmd_parts = []
-            for arg in cmd:
-                arg_str = str(arg)
-                if needs_quotes(arg_str):
-                    # Экранируем внутренние кавычки если есть
-                    arg_str = arg_str.replace('"', '\\"')
-                    cmd_parts.append(f'"{arg_str}"')
-                else:
-                    cmd_parts.append(arg_str)
-            
-            cmd_str = ' '.join(cmd_parts)
+            cmd_str = format_command_for_log(cmd)
             self.logger.debug_msg(f"Команда: {cmd_str}")
             self.logger.debug_msg("Примечание: Команда отформатирована для копирования в CMD")
     
