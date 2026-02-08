@@ -386,8 +386,7 @@ class ValidationConverter(BaseConverter):
                 capture_output=True,
                 text=True,
                 encoding='utf-8',
-                errors='replace',
-                timeout=300  # 5 минут таймаут
+                errors='replace'
             )
             
             self.report_progress("Валидация завершена", 80)
@@ -421,12 +420,6 @@ class ValidationConverter(BaseConverter):
                 
                 return 1
                 
-        except subprocess.TimeoutExpired:
-            self.log_error("Превышено время ожидания валидации (5 минут)")
-            if self.temp_manager:
-                self.temp_manager.preserve_on_error()
-            return 1
-            
         except Exception as e:
             self.log_error(f"Ошибка при валидации EDT проекта: {e}")
             if self.temp_manager:

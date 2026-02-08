@@ -65,6 +65,16 @@ class Logger:
         self.debug = debug
         Colors.enable_windows_colors()
     
+    def _get_timestamp(self) -> str:
+        """
+        Возвращает текущую временную метку в формате YYYY-MM-DD HH:MM:SS.
+        
+        Returns:
+            str: Отформатированная временная метка
+        """
+        from datetime import datetime
+        return datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    
     def _safe_print(self, prefix: str, message: str, color: str = Colors.RESET):
         """
         Безопасный вывод сообщения с обработкой ошибок кодировки.
@@ -74,22 +84,25 @@ class Logger:
             message: Текст сообщения
             color: ANSI код цвета для префикса
         """
+        # Получаем временную метку
+        timestamp = self._get_timestamp()
+        
         # Удаляем BOM (\ufeff) и другие проблемные Unicode символы
         clean_message = message.replace('\ufeff', '').replace('\ufffe', '')
         
         # Пытаемся вывести в консоль с обработкой ошибок кодировки
         try:
-            print(f"{color}{prefix}{Colors.RESET} {clean_message}")
+            print(f"{Colors.CYAN}{timestamp}{Colors.RESET} {color}{prefix}{Colors.RESET} {clean_message}")
         except UnicodeEncodeError:
             # Если не получается, используем замену проблемных символов
             # Пробуем cp1251 (основная кодировка Windows)
             try:
                 safe_message = clean_message.encode('cp1251', errors='replace').decode('cp1251')
-                print(f"{color}{prefix}{Colors.RESET} {safe_message}")
+                print(f"{Colors.CYAN}{timestamp}{Colors.RESET} {color}{prefix}{Colors.RESET} {safe_message}")
             except Exception:
                 # В крайнем случае используем ASCII с заменой
                 safe_message = clean_message.encode('ascii', errors='replace').decode('ascii')
-                print(f"{color}{prefix}{Colors.RESET} {safe_message}")
+                print(f"{Colors.CYAN}{timestamp}{Colors.RESET} {color}{prefix}{Colors.RESET} {safe_message}")
     
     def info(self, message: str):
         """Выводит информационное сообщение."""
@@ -114,7 +127,8 @@ class Logger:
     def debug_msg(self, message: str):
         """Выводит отладочное сообщение."""
         if not self.silent and self.debug:
-            print(f"{Colors.CYAN}[ОТЛАДКА]{Colors.RESET} {message}")
+            timestamp = self._get_timestamp()
+            print(f"{Colors.CYAN}{timestamp}{Colors.RESET} {Colors.CYAN}[ОТЛАДКА]{Colors.RESET} {message}")
 
 
 class SourceType(Enum):
