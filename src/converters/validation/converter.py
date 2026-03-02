@@ -35,7 +35,6 @@ class ValidationConverter(BaseConverter):
         V8_SRC_PATH: Путь к EDT проекту (обязательно)
         V8_DST_PATH: Путь к отчету валидации или каталогу для отчета (обязательно)
         V8_EDT_VERSION: Версия EDT (опционально, по умолчанию 2024.2)
-        RING_TOOL: Путь к ring.bat (опционально)
         EDTCLI_TOOL: Путь к 1cedtcli.exe (опционально)
     
     Args:

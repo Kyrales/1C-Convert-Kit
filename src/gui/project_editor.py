@@ -111,6 +111,9 @@ class ProjectEditorDialog:
         """
         desc_lower = description.lower()
         
+        if param_name == 'V8_CONVERT_TOOL':
+            return 'text'
+        
         # Булевы параметры (0 или 1)
         if 'установлена в 1' in desc_lower or 'если установлена' in desc_lower:
             return 'boolean'

@@ -79,7 +79,7 @@ class TestProjectEditorLogic(unittest.TestCase):
         
         # Булев параметр
         bool_type = dialog._detect_param_type(
-            'V8_SKIP_ENV',
+            'V8_CONF_CLEAN_DST',
             'Если установлена в 1, то отключает чтение'
         )
         self.assertEqual(bool_type, 'boolean')

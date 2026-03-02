@@ -86,7 +86,6 @@ V8_DST_PATH=f:\1C\Output
 - `EDTCLI_TOOL` - путь к 1cedtcli.exe
 - `RING_TOOL` - путь к ring.cmd
 - `V8_TEMP` - каталог для временных файлов
-- `V8_ENCODING` - кодировка вывода (по умолчанию: 65001)
 
 ### Параметры проекта (project.env):
 - `ScriptName` - имя скрипта конвертации (обязательно!)
