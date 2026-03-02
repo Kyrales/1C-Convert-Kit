@@ -409,6 +409,136 @@ class V8ToolWrapper(ToolWrapper):
             
         except subprocess.SubprocessError as e:
             raise ToolExecutionError(f"Ошибка запуска 1cv8.exe: {e}")
+
+    def dump_config_to_files(
+        self,
+        ib_connection: str,
+        output_dir: Path,
+        log_file: Path
+    ) -> int:
+        """
+        Выгружает конфигурацию в XML файлы.
+        
+        Args:
+            ib_connection: Строка подключения к ИБ (путь к папке ИБ)
+            output_dir: Директория для выгрузки XML
+            log_file: Путь к лог-файлу
+            
+        Returns:
+            int: Код возврата (0 - успех)
+            
+        Raises:
+            ToolNotFoundError: Если инструмент не найден
+            ToolExecutionError: Если выполнение завершилось с ошибкой
+        """
+        if not self.is_available():
+            raise ToolNotFoundError("1cv8.exe не найден в системе")
+        
+        self.logger.info(f"Выгрузка конфигурации в XML: {output_dir}...")
+        
+        ib_path_str = str(ib_connection).replace('\\', '/')
+        ib_conn_string = f'File={ib_path_str};'
+        
+        cmd = [
+            str(self.tool_path),
+            'DESIGNER',
+            '/IBConnectionString', ib_conn_string,
+            '/DisableStartupDialogs',
+            '/Out', str(log_file),
+            '/DumpConfigToFiles', str(output_dir)
+        ]
+        
+        self._append_ib_credentials(cmd)
+        self._log_command(cmd)
+        
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding='cp1251',
+                errors='replace'
+            )
+            
+            if log_file.exists():
+                from .converter import ToolOutputParser
+                errors, _ = ToolOutputParser.parse_designer_log(log_file, self.logger)
+                if errors:
+                    error_msg = '\n'.join(errors)
+                    raise ToolExecutionError(
+                        f"Ошибка при выгрузке конфигурации",
+                        tool_output=error_msg
+                    )
+            
+            return result.returncode
+            
+        except subprocess.SubprocessError as e:
+            raise ToolExecutionError(f"Ошибка запуска 1cv8.exe: {e}")
+
+    def load_config_from_cf(
+        self,
+        ib_connection: str,
+        cf_file: Path,
+        log_file: Path
+    ) -> int:
+        """
+        Загружает конфигурацию из CF файла в ИБ.
+        
+        Args:
+            ib_connection: Строка подключения к ИБ (путь к папке ИБ)
+            cf_file: Путь к CF файлу
+            log_file: Путь к лог-файлу
+            
+        Returns:
+            int: Код возврата (0 - успех)
+            
+        Raises:
+            ToolNotFoundError: Если инструмент не найден
+            ToolExecutionError: Если выполнение завершилось с ошибкой
+        """
+        if not self.is_available():
+            raise ToolNotFoundError("1cv8.exe не найден в системе")
+        
+        self.logger.info(f"Загрузка конфигурации из CF: {cf_file}...")
+        
+        ib_path_str = str(ib_connection).replace('\\', '/')
+        ib_conn_string = f'File={ib_path_str};'
+        
+        cmd = [
+            str(self.tool_path),
+            'DESIGNER',
+            '/IBConnectionString', ib_conn_string,
+            '/DisableStartupDialogs',
+            '/Out', str(log_file),
+            '/LoadCfg', str(cf_file)
+        ]
+        
+        self._append_ib_credentials(cmd)
+        self._log_command(cmd)
+        
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding='cp1251',
+                errors='replace'
+            )
+            
+            if log_file.exists():
+                from .converter import ToolOutputParser
+                errors, _ = ToolOutputParser.parse_designer_log(log_file, self.logger)
+                if errors:
+                    error_msg = '\n'.join(errors)
+                    raise ToolExecutionError(
+                        f"Ошибка при загрузке CF",
+                        tool_output=error_msg
+                    )
+            
+            return result.returncode
+            
+        except subprocess.SubprocessError as e:
+            raise ToolExecutionError(f"Ошибка запуска 1cv8.exe: {e}")
     
     def load_external_processor(
         self, 
@@ -587,13 +717,69 @@ class IbcmdToolWrapper(ToolWrapper):
                 cmd,
                 capture_output=True,
                 text=True,
-                encoding='cp1251',
+                encoding='utf-8',
                 errors='replace'
             )
             
             if result.returncode != 0:
                 raise ToolExecutionError(
                     f"Ошибка при создании ИБ с конфигурацией",
+                    tool_output=result.stderr or result.stdout
+                )
+            
+            return result.returncode
+            
+        except subprocess.SubprocessError as e:
+            raise ToolExecutionError(f"Ошибка запуска ibcmd.exe: {e}")
+    
+    def import_config(
+        self,
+        db_path: Path,
+        xml_path: Path
+    ) -> int:
+        """
+        Импортирует конфигурацию в существующую ИБ из XML.
+        
+        Args:
+            db_path: Путь к существующей ИБ
+            xml_path: Путь к XML файлам конфигурации
+            
+        Returns:
+            int: Код возврата (0 - успех)
+        """
+        if not self.is_available():
+            raise ToolNotFoundError("ibcmd.exe не найден в системе")
+        
+        self.logger.info(f"Импорт конфигурации в существующую ИБ из XML...")
+        
+        ibcmd_data = self.env_vars.get('IBCMD_DATA', str(Path(self.env_vars.get('V8_TEMP', 'temp')) / 'ibcmd_data'))
+        ib_user = self.env_vars.get('V8_IB_USER', '')
+        ib_pwd = self.env_vars.get('V8_IB_PWD', '')
+        
+        cmd = [
+            str(self.tool_path),
+            'infobase', 'config', 'import',
+            f'--data={ibcmd_data}',
+            f'--db-path={db_path}',
+            f'--user={ib_user}',
+            f'--password={ib_pwd}',
+            str(xml_path)
+        ]
+        
+        self._log_command(cmd)
+        
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+                errors='replace'
+            )
+            
+            if result.returncode != 0:
+                raise ToolExecutionError(
+                    f"Ошибка при импорте конфигурации",
                     tool_output=result.stderr or result.stdout
                 )
             
@@ -689,7 +875,7 @@ class IbcmdToolWrapper(ToolWrapper):
                 cmd,
                 capture_output=True,
                 text=True,
-                encoding='cp1251',
+                encoding='utf-8',
                 errors='replace'
             )
             

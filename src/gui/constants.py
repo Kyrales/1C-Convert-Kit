@@ -7,7 +7,7 @@
 from pathlib import Path
 
 # Версия приложения
-VERSION = "1.2.1"
+VERSION = "1.2.2"
 
 # Цветовая схема Cyberpunk
 COLORS = {
