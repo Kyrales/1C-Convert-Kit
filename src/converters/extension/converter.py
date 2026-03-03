@@ -71,6 +71,8 @@ class ExtensionConverter(BaseConverter):
         """
         return '.cfe'
     
+    
+    
     def _validate_specific(self) -> None:
         """
         Специфичная валидация для конвертера расширений.
@@ -629,6 +631,7 @@ class ExtensionConverter(BaseConverter):
                 # Определяем имя выходной директории
                 cfe_name = Path(self.src_path).stem
                 output_dir = Path(self.dst_path) / cfe_name
+                self._maybe_clean_dir(output_dir, 'V8_EXT_CLEAN_DST', 'V8_EXT_CLEAN_DST')
                 output_dir.mkdir(parents=True, exist_ok=True)
                 
                 dump_log_file = self.temp_dir / 'dump_xml.log'
@@ -675,6 +678,7 @@ class ExtensionConverter(BaseConverter):
                 # Определяем имя выходной директории
                 cfe_name = Path(self.src_path).stem
                 output_dir = Path(self.dst_path) / cfe_name
+                self._maybe_clean_dir(output_dir, 'V8_EXT_CLEAN_DST', 'V8_EXT_CLEAN_DST')
                 output_dir.mkdir(parents=True, exist_ok=True)
                 
                 # Сначала выгружаем в XML

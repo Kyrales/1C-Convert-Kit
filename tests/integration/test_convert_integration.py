@@ -34,6 +34,24 @@ class TestConversionIntegration:
         # Очистка: удаляем выходную директорию со всем содержимым
         if self.output_dir.exists():
             shutil.rmtree(self.output_dir)
+
+    def _create_file_ib_from_xml(
+        self,
+        base_env: Path,
+        src_xml: Path,
+        ib_dir: Path,
+        env_name: str,
+        error_message: str
+    ) -> None:
+        tmp_env = self.output_dir / env_name
+        with open(tmp_env, 'w', encoding='utf-8') as f:
+            f.write('ScriptName=conf2ib\n')
+            f.write(f'V8_SRC_PATH="{str(src_xml)}"\n')
+            f.write(f'V8_DST_PATH="{str(ib_dir)}"\n')
+        exit_code = run_conversion([str(base_env), str(tmp_env)])
+        assert exit_code == 0, error_message
+        assert ib_dir.exists(), f"Директория ИБ не создана: {ib_dir}"
+        assert (ib_dir / '1Cv8.1CD').exists(), "Файл 1Cv8.1CD не найден в каталоге ИБ"
     
     def test_conf2cf_conversion(self):
         """
@@ -978,6 +996,401 @@ class TestConversionIntegration:
         print(f"[OK] Обработано строк вывода: {len(output_lines)}")
         print(f"[OK] Ошибок кодирования: {len(encoding_errors)}")
         print(f"[OK] Отчет создан: {output_file.name}")
+
+    def test_conf2ib_from_edt(self):
+        """
+        Конвертация EDT конфигурации в файловую ИБ
+        """
+        base_env = project_root / 'tests' / 'fixtures' / 'base_test.env'
+        src_path = project_root / 'tests' / 'fixtures' / 'cf' / 'otusJenkinsExampleEDT'
+        dst_ib_dir = self.output_dir / 'conf_ib'
+        tmp_env = self.output_dir / 'conf2ib_edt.env'
+        with open(tmp_env, 'w', encoding='utf-8') as f:
+            f.write('ScriptName=conf2ib\n')
+            f.write(f'V8_SRC_PATH="{str(src_path)}"\n')
+            f.write(f'V8_DST_PATH="{str(dst_ib_dir)}"\n')
+        env_files = [str(base_env), str(tmp_env)]
+        exit_code = run_conversion(env_files)
+        assert exit_code == 0, "Конвертация conf2ib завершилась с ошибкой"
+        assert dst_ib_dir.exists(), f"Директория ИБ не создана: {dst_ib_dir}"
+        assert (dst_ib_dir / '1Cv8.1CD').exists(), "Файл 1Cv8.1CD не найден в каталоге ИБ"
+
+    def test_ib2cf_from_file_ib(self):
+        """
+        Выгрузка конфигурации из файловой ИБ в CF
+        """
+        base_env = project_root / 'tests' / 'fixtures' / 'base_test.env'
+        src_xml = project_root / 'tests' / 'fixtures' / 'cf' / 'ConfXML'
+        ib_dir = self.output_dir / 'ib_for_cf'
+        self._create_file_ib_from_xml(
+            base_env=base_env,
+            src_xml=src_xml,
+            ib_dir=ib_dir,
+            env_name='conf2ib_from_xml.env',
+            error_message="Создание ИБ из XML завершилось с ошибкой"
+        )
+        dst_cf = self.output_dir / 'ib_dump.cf'
+        tmp_env2 = self.output_dir / 'ib2cf.env'
+        with open(tmp_env2, 'w', encoding='utf-8') as f:
+            f.write('ScriptName=conf2cf\n')
+            f.write(f'V8_SRC_PATH="/F{str(ib_dir)}"\n')
+            f.write(f'V8_DST_PATH="{str(dst_cf)}"\n')
+        exit_code = run_conversion([str(base_env), str(tmp_env2)])
+        assert exit_code == 0, "Выгрузка CF из ИБ завершилась с ошибкой"
+        assert dst_cf.exists(), f"CF файл не создан: {dst_cf}"
+        assert dst_cf.stat().st_size > 0, "CF файл пустой"
+
+    def test_ib2xml_from_file_ib(self):
+        """
+        Выгрузка конфигурации из файловой ИБ в XML
+        """
+        base_env = project_root / 'tests' / 'fixtures' / 'base_test.env'
+        src_xml = project_root / 'tests' / 'fixtures' / 'cf' / 'ConfXML'
+        ib_dir = self.output_dir / 'ib_for_xml'
+        self._create_file_ib_from_xml(
+            base_env=base_env,
+            src_xml=src_xml,
+            ib_dir=ib_dir,
+            env_name='conf2ib_from_xml_2.env',
+            error_message="Создание ИБ из XML завершилось с ошибкой"
+        )
+        dst_xml_dir = self.output_dir / 'ib_xml'
+        tmp_env2 = self.output_dir / 'ib2xml.env'
+        with open(tmp_env2, 'w', encoding='utf-8') as f:
+            f.write('ScriptName=conf2xml\n')
+            f.write(f'V8_SRC_PATH="/F{str(ib_dir)}"\n')
+            f.write(f'V8_DST_PATH="{str(dst_xml_dir)}"\n')
+            f.write('V8_CONF_CLEAN_DST=1\n')
+        exit_code = run_conversion([str(base_env), str(tmp_env2)])
+        assert exit_code == 0, "Выгрузка XML из ИБ завершилась с ошибкой"
+        config_xml = dst_xml_dir / 'Configuration.xml'
+        assert config_xml.exists(), f"Configuration.xml не создан: {config_xml}"
+        assert config_xml.stat().st_size > 0, "Configuration.xml пустой"
+
+    def test_ib2edt_via_conf2edt(self):
+        """
+        Конвертация файловой ИБ в EDT проект через ScriptName=conf2edt
+        """
+        base_env = project_root / 'tests' / 'fixtures' / 'base_test.env'
+        src_xml = project_root / 'tests' / 'fixtures' / 'cf' / 'ConfXML'
+        ib_dir = self.output_dir / 'ib_for_edt'
+        self._create_file_ib_from_xml(
+            base_env=base_env,
+            src_xml=src_xml,
+            ib_dir=ib_dir,
+            env_name='conf2ib_for_edt.env',
+            error_message="Создание ИБ для EDT завершилось с ошибкой"
+        )
+        dst_edt_root = self.output_dir / 'ib_edt'
+        tmp_env2 = self.output_dir / 'ib2edt.env'
+        with open(tmp_env2, 'w', encoding='utf-8') as f:
+            f.write('ScriptName=conf2edt\n')
+            f.write(f'V8_SRC_PATH="/F{str(ib_dir)}"\n')
+            f.write(f'V8_DST_PATH="{str(dst_edt_root)}"\n')
+        exit_code = run_conversion([str(base_env), str(tmp_env2)])
+        assert exit_code == 0, "Конвертация IB -> EDT завершилась с ошибкой"
+        project_dir = dst_edt_root / ib_dir.name
+        assert project_dir.exists(), f"EDT проект не создан: {project_dir}"
+        assert (project_dir / '.project').exists(), ".project не найден в EDT проекте"
+        assert (project_dir / 'DT-INF').exists(), "DT-INF не найден в EDT проекте"
+        assert (project_dir / 'src').exists(), "src не найден в EDT проекте"
+
+    def test_ib2cf_from_server_ib(self):
+        """
+        Выгрузка конфигурации из серверной ИБ в CF (без IBCMD; используется 1cv8.exe DESIGNER)
+        
+        Этапы:
+        - Формирование /IBConnectionString Srvr=<server>;Ref=<base>;
+        - Выгрузка конфигурации в CF через DESIGNER (/DumpCfg)
+        
+        Проверяет:
+        - Выходной .cf создан и его размер > 0
+        """
+        base_env = project_root / 'tests' / 'fixtures' / 'base_test.env'
+        dst_cf = self.output_dir / 'server_ib_dump.cf'
+        tmp_env = self.output_dir / 'server_ib2cf.env'
+        with open(tmp_env, 'w', encoding='utf-8') as f:
+            f.write('ScriptName=conf2cf\n')
+            f.write('V8_IB_USER="Администратор"\n')
+            f.write('V8_IB_PWD="123456"\n')
+            f.write('V8_SRC_PATH="/Skantor\\test_for_1c_convert_kit"\n')
+            f.write(f'V8_DST_PATH="{str(dst_cf)}"\n')
+        exit_code = run_conversion([str(base_env), str(tmp_env)])
+        assert exit_code == 0, "Выгрузка CF из серверной ИБ завершилась с ошибкой"
+        assert dst_cf.exists(), f"CF файл не создан: {dst_cf}"
+        assert dst_cf.stat().st_size > 0, "CF файл пустой"
+
+    def test_ib2xml_from_server_ib(self):
+        """
+        Выгрузка конфигурации из серверной ИБ в XML (без IBCMD; используется 1cv8.exe DESIGNER)
+        
+        Этапы:
+        - Подготовка выходного каталога; при V8_CONF_CLEAN_DST=1 — очистка каталога
+        - Выгрузка конфигурации в XML через DESIGNER (/DumpConfigToFiles)
+        
+        Проверяет:
+        - Наличие Configuration.xml и ненулевой размер
+        """
+        base_env = project_root / 'tests' / 'fixtures' / 'base_test.env'
+        dst_xml_dir = self.output_dir / 'server_ib_xml'
+        tmp_env = self.output_dir / 'server_ib2xml.env'
+        with open(tmp_env, 'w', encoding='utf-8') as f:
+            f.write('ScriptName=conf2xml\n')
+            f.write('V8_IB_USER="Администратор"\n')
+            f.write('V8_IB_PWD="123456"\n')
+            f.write('V8_SRC_PATH="/Skantor\\test_for_1c_convert_kit"\n')
+            f.write(f'V8_DST_PATH="{str(dst_xml_dir)}"\n')
+            f.write('V8_CONF_CLEAN_DST=1\n')
+        exit_code = run_conversion([str(base_env), str(tmp_env)])
+        assert exit_code == 0, "Выгрузка XML из серверной ИБ завершилась с ошибкой"
+        config_xml = dst_xml_dir / 'Configuration.xml'
+        assert config_xml.exists(), f"Configuration.xml не создан: {config_xml}"
+        assert config_xml.stat().st_size > 0, "Configuration.xml пустой"
+
+    def test_ib2edt_from_server_ib(self):
+        """
+        Выгрузка конфигурации из серверной ИБ в EDT через conf2edt (без IBCMD)
+        
+        Этапы:
+        - ИБ → XML: 1cv8.exe DESIGNER выгружает XML во временный каталог
+        - XML → EDT: импорт в EDT проект через 1cedtcli/ring, создаётся workspace
+        
+        Проверяет:
+        - В проекте есть .project, DT-INF, src
+        """
+        base_env = project_root / 'tests' / 'fixtures' / 'base_test.env'
+        dst_edt_root = self.output_dir / 'server_ib_edt'
+        tmp_env = self.output_dir / 'server_ib2edt.env'
+        with open(tmp_env, 'w', encoding='utf-8') as f:
+            f.write('ScriptName=conf2edt\n')
+            f.write('V8_IB_USER="Администратор"\n')
+            f.write('V8_IB_PWD="123456"\n')
+            f.write('V8_SRC_PATH="/Skantor\\test_for_1c_convert_kit"\n')
+            f.write(f'V8_DST_PATH="{str(dst_edt_root)}"\n')
+        exit_code = run_conversion([str(base_env), str(tmp_env)])
+        assert exit_code == 0, "Выгрузка EDT из серверной ИБ завершилась с ошибкой"
+        project_dir = dst_edt_root / 'test_for_1c_convert_kit'
+        assert project_dir.exists(), f"EDT проект не создан: {project_dir}"
+        assert (project_dir / '.project').exists(), ".project не найден в EDT проекте"
+        assert (project_dir / 'DT-INF').exists(), "DT-INF не найден в EDT проекте"
+        assert (project_dir / 'src').exists(), "src не найден в EDT проекте"
+
+    def test_ib2cf_from_server_ib_ibcmd(self):
+        """
+        Выгрузка конфигурации из серверной ИБ в CF с использованием IBCMD
+        
+        Этапы:
+        - Формирование /IBConnectionString Srvr=<server>;Ref=<base>;
+        - Выгрузка конфигурации в CF через IBCMD
+        
+        Проверяет:
+        - Выходной .cf создан и его размер > 0
+        """
+        base_env = project_root / 'tests' / 'fixtures' / 'base_test.env'
+        base_vars = load_env_file(str(base_env), silent=True)
+        if not base_vars or 'IBCMD_TOOL' not in base_vars or not Path(base_vars['IBCMD_TOOL']).exists():
+            pytest.skip("IBCMD_TOOL не настроен, тест пропущен")
+        dst_cf = self.output_dir / 'server_ib_dump_ibcmd.cf'
+        tmp_env = self.output_dir / 'server_ib2cf_ibcmd.env'
+        with open(tmp_env, 'w', encoding='utf-8') as f:
+            f.write('ScriptName=conf2cf\n')
+            f.write('V8_CONVERT_TOOL=ibcmd\n')
+            f.write('V8_IB_USER="Администратор"\n')
+            f.write('V8_IB_PWD="123456"\n')
+            f.write('V8_SRC_PATH="/Skantor\\test_for_1c_convert_kit"\n')
+            f.write(f'V8_DST_PATH="{str(dst_cf)}"\n')
+        exit_code = run_conversion([str(base_env), str(tmp_env)])
+        assert exit_code == 0, "Выгрузка CF из серверной ИБ через IBCMD завершилась с ошибкой"
+        assert dst_cf.exists(), f"CF файл не создан: {dst_cf}"
+        assert dst_cf.stat().st_size > 0, "CF файл пустой"
+
+    def test_ib2xml_from_server_ib_ibcmd_with_ib_server(self):
+        """
+        Выгрузка конфигурации из серверной ИБ в XML с использованием IBCMD
+        
+        Этапы:
+        - Подготовка выходного каталога; при V8_CONF_CLEAN_DST=1 — очистка каталога
+        - Выгрузка конфигурации в XML через IBCMD
+        
+        Проверяет:
+        - Наличие Configuration.xml и ненулевой размер
+        """
+        base_env = project_root / 'tests' / 'fixtures' / 'base_test.env'
+        base_vars = load_env_file(str(base_env), silent=True)
+        if not base_vars or 'IBCMD_TOOL' not in base_vars or not Path(base_vars['IBCMD_TOOL']).exists():
+            pytest.skip("IBCMD_TOOL не настроен, тест пропущен")
+        dst_xml_dir = self.output_dir / 'server_ib_xml_ibcmd'
+        tmp_env = self.output_dir / 'server_ib2xml_ibcmd.env'
+        with open(tmp_env, 'w', encoding='utf-8') as f:
+            f.write('ScriptName=conf2xml\n')
+            f.write('V8_CONVERT_TOOL=ibcmd\n')
+            f.write('V8_IB_USER="Администратор"\n')
+            f.write('V8_IB_PWD="123456"\n')
+            f.write('V8_SRC_PATH="/Skantor\\test_for_1c_convert_kit"\n')
+            f.write(f'V8_DST_PATH="{str(dst_xml_dir)}"\n')
+            f.write('V8_CONF_CLEAN_DST=1\n')
+        exit_code = run_conversion([str(base_env), str(tmp_env)])
+        assert exit_code == 0, "Выгрузка XML из серверной ИБ через IBCMD завершилась с ошибкой"
+        config_xml = dst_xml_dir / 'Configuration.xml'
+        assert config_xml.exists(), f"Configuration.xml не создан: {config_xml}"
+        assert config_xml.stat().st_size > 0, "Configuration.xml пустой"
+
+    def test_ib2xml_from_file_ib_ibcmd(self):
+        """
+        Выгрузка конфигурации из файловой ИБ в XML с использованием IBCMD
+        
+        Этапы:
+        - CF → XML: подготовка XML из CF
+        - XML → IB: создание временной файловой ИБ
+        - IB → XML: выгрузка конфигурации в XML через IBCMD
+        
+        Проверяет:
+        - Наличие Configuration.xml и ненулевой размер
+        """
+        base_env = project_root / 'tests' / 'fixtures' / 'base_test.env'
+        base_vars = load_env_file(str(base_env), silent=True)
+        if not base_vars or 'IBCMD_TOOL' not in base_vars or not Path(base_vars['IBCMD_TOOL']).exists():
+            pytest.skip("IBCMD_TOOL не настроен, тест пропущен")
+        src_cf = project_root / 'tests' / 'fixtures' / 'edt_xml' / 'demo_otus_edt.cf'
+        assert src_cf.exists(), f"CF файл не найден: {src_cf}"
+        cf_xml_dir = self.output_dir / 'cf_xml_ibcmd'
+        tmp_env1 = self.output_dir / 'conf2xml_from_cf_ibcmd.env'
+        with open(tmp_env1, 'w', encoding='utf-8') as f:
+            f.write('ScriptName=conf2xml\n')
+            f.write(f'V8_SRC_PATH="{str(src_cf)}"\n')
+            f.write(f'V8_DST_PATH="{str(cf_xml_dir)}"\n')
+            f.write('V8_CONF_CLEAN_DST=1\n')
+        exit_code = run_conversion([str(base_env), str(tmp_env1)])
+        assert exit_code == 0, "Конвертация CF -> XML завершилась с ошибкой"
+        cf_xml_project_dir = cf_xml_dir / src_cf.stem
+        assert (cf_xml_project_dir / 'Configuration.xml').exists(), "Configuration.xml не создан при CF -> XML"
+        ib_dir = self.output_dir / 'ib_from_cf_ibcmd'
+        self._create_file_ib_from_xml(
+            base_env=base_env,
+            src_xml=cf_xml_project_dir,
+            ib_dir=ib_dir,
+            env_name='conf2ib_from_cf_xml.env',
+            error_message="Создание файловой ИБ из XML завершилось с ошибкой"
+        )
+        dst_xml_dir = self.output_dir / 'ib_xml_ibcmd'
+        tmp_env3 = self.output_dir / 'ib2xml_ibcmd.env'
+        with open(tmp_env3, 'w', encoding='utf-8') as f:
+            f.write('ScriptName=conf2xml\n')
+            f.write('V8_CONVERT_TOOL=ibcmd\n')
+            f.write('V8_IB_USER=\n')
+            f.write('V8_IB_PWD=\n')
+            f.write('V8_IB_SERVER=\n')
+            f.write('V8_IB_NAME=\n')
+            f.write(f'V8_SRC_PATH="/F{str(ib_dir)}"\n')
+            f.write(f'V8_DST_PATH="{str(dst_xml_dir)}"\n')
+            f.write('V8_CONF_CLEAN_DST=1\n')
+        exit_code = run_conversion([str(base_env), str(tmp_env3)])
+        assert exit_code == 0, "Выгрузка XML из файловой ИБ через IBCMD завершилась с ошибкой"
+        config_xml = dst_xml_dir / 'Configuration.xml'
+        assert config_xml.exists(), f"Configuration.xml не создан: {config_xml}"
+        assert config_xml.stat().st_size > 0, "Configuration.xml пустой"
+
+    def test_ib2edt_from_server_ib_ibcmd(self):
+        """
+        Выгрузка конфигурации из серверной ИБ в EDT через conf2edt с использованием IBCMD
+        
+        Этапы:
+        - ИБ → XML: выгрузка через IBCMD во временный каталог
+        - XML → EDT: импорт в EDT проект через 1cedtcli/ring, создаётся workspace
+        
+        Проверяет:
+        - В проекте есть .project, DT-INF, src
+        """
+        base_env = project_root / 'tests' / 'fixtures' / 'base_test.env'
+        base_vars = load_env_file(str(base_env), silent=True)
+        if not base_vars or 'IBCMD_TOOL' not in base_vars or not Path(base_vars['IBCMD_TOOL']).exists():
+            pytest.skip("IBCMD_TOOL не настроен, тест пропущен")
+        dst_edt_root = self.output_dir / 'server_ib_edt_ibcmd'
+        tmp_env = self.output_dir / 'server_ib2edt_ibcmd.env'
+        with open(tmp_env, 'w', encoding='utf-8') as f:
+            f.write('ScriptName=conf2edt\n')
+            f.write('V8_CONVERT_TOOL=ibcmd\n')
+            f.write('V8_IB_USER="Администратор"\n')
+            f.write('V8_IB_PWD="123456"\n')
+            f.write('V8_SRC_PATH="/Skantor\\test_for_1c_convert_kit"\n')
+            f.write(f'V8_DST_PATH="{str(dst_edt_root)}"\n')
+        exit_code = run_conversion([str(base_env), str(tmp_env)])
+        assert exit_code == 0, "Выгрузка EDT из серверной ИБ через IBCMD завершилась с ошибкой"
+        project_dir = dst_edt_root / 'test_for_1c_convert_kit'
+        assert project_dir.exists(), f"EDT проект не создан: {project_dir}"
+        assert (project_dir / '.project').exists(), ".project не найден в EDT проекте"
+        assert (project_dir / 'DT-INF').exists(), "DT-INF не найден в EDT проекте"
+        assert (project_dir / 'src').exists(), "src не найден в EDT проекте"
+
+    def test_conf2xml_clean_dst_on(self):
+        """
+        Очистка каталога назначения при V8_CONF_CLEAN_DST=1
+        """
+        base_env = project_root / 'tests' / 'fixtures' / 'base_test.env'
+        cf_file = project_root / 'tests' / 'fixtures' / 'edt_xml' / 'demo_otus_edt.cf'
+        dst_root = self.output_dir
+        subdir = dst_root / 'demo_otus_edt'
+        subdir.mkdir(parents=True, exist_ok=True)
+        junk = subdir / 'should_be_removed.txt'
+        with open(junk, 'w', encoding='utf-8') as f:
+            f.write('junk')
+        tmp_env = self.output_dir / 'conf2xml_clean_on.env'
+        with open(tmp_env, 'w', encoding='utf-8') as f:
+            f.write('ScriptName=conf2xml\n')
+            f.write(f'V8_SRC_PATH="{str(cf_file)}"\n')
+            f.write(f'V8_DST_PATH="{str(dst_root)}"\n')
+            f.write('V8_CONF_CLEAN_DST=1\n')
+        exit_code = run_conversion([str(base_env), str(tmp_env)])
+        assert exit_code == 0
+        assert not junk.exists(), "Файл не удален при очистке каталога назначения"
+        config_xml = subdir / 'Configuration.xml'
+        assert config_xml.exists()
+
+    def test_conf2xml_clean_dst_off(self):
+        """
+        Без очистки каталога назначения при V8_CONF_CLEAN_DST=0
+        """
+        base_env = project_root / 'tests' / 'fixtures' / 'base_test.env'
+        cf_file = project_root / 'tests' / 'fixtures' / 'edt_xml' / 'demo_otus_edt.cf'
+        dst_root = self.output_dir
+        subdir = dst_root / 'demo_otus_edt'
+        subdir.mkdir(parents=True, exist_ok=True)
+        junk = subdir / 'should_stay.txt'
+        with open(junk, 'w', encoding='utf-8') as f:
+            f.write('junk')
+        tmp_env = self.output_dir / 'conf2xml_clean_off.env'
+        with open(tmp_env, 'w', encoding='utf-8') as f:
+            f.write('ScriptName=conf2xml\n')
+            f.write(f'V8_SRC_PATH="{str(cf_file)}"\n')
+            f.write(f'V8_DST_PATH="{str(dst_root)}"\n')
+            f.write('V8_CONF_CLEAN_DST=0\n')
+        exit_code = run_conversion([str(base_env), str(tmp_env)])
+        assert exit_code == 0
+        assert junk.exists(), "Файл удален несмотря на V8_CONF_CLEAN_DST=0"
+        config_xml = subdir / 'Configuration.xml'
+        assert config_xml.exists()
+
+    def test_conf2cf_from_xml_with_ibcmd_when_available(self):
+        """
+        Конвертация XML → CF с инструментом ibcmd при наличии IBCMD_TOOL
+        """
+        base_env = project_root / 'tests' / 'fixtures' / 'base_test.env'
+        base_vars = load_env_file(str(base_env), silent=True)
+        if not base_vars or 'IBCMD_TOOL' not in base_vars or not Path(base_vars['IBCMD_TOOL']).exists():
+            pytest.skip("IBCMD_TOOL не настроен, тест пропущен")
+        src_xml = project_root / 'tests' / 'fixtures' / 'cf' / 'ConfXML'
+        dst_cf = self.output_dir / 'xml_ibcmd.cf'
+        tmp_env = self.output_dir / 'xml2cf_ibcmd.env'
+        with open(tmp_env, 'w', encoding='utf-8') as f:
+            f.write('ScriptName=conf2cf\n')
+            f.write('V8_CONVERT_TOOL=ibcmd\n')
+            f.write('V8_IB_SERVER=\n')
+            f.write('V8_IB_NAME=\n')
+            f.write(f'V8_SRC_PATH="{str(src_xml)}"\n')
+            f.write(f'V8_DST_PATH="{str(dst_cf)}"\n')
+        exit_code = run_conversion([str(base_env), str(tmp_env)])
+        assert exit_code == 0
+        assert dst_cf.exists() and dst_cf.stat().st_size > 0
 
 
 if __name__ == '__main__':

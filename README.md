@@ -262,4 +262,4 @@ MIT License - см. [LICENSE](LICENSE)
 
 ## 🙏 Благодарности
 
-Проект основан на [1CFilesConverter](https://github.com/1CFilesConverter)
+Проект основан на [1CFilesConverter](https://github.com/arkuznetsov/1CFilesConverter)

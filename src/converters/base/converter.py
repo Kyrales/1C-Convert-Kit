@@ -668,6 +668,30 @@ class BaseConverter(ABC):
             self.progress_callback(stage, percent)
         if not self.silent:
             self.logger.info(f"{stage}: {percent}%")
+
+    def _maybe_clean_dir(self, path: Path, env_key: str, flag_name: str) -> None:
+        """
+        Очищает содержимое каталога, если соответствующая переменная окружения установлена в '1'.
+        
+        Args:
+            path: Каталог, который потенциально нужно очистить
+            env_key: Имя переменной окружения-флага (например, 'V8_CONF_CLEAN_DST')
+            flag_name: Имя флага для логирования (обычно совпадает с env_key)
+        """
+        if self.env_vars.get(env_key, '0') != '1':
+            return
+        self.logger.info(f"Очистка каталога назначения ({flag_name}=1): {path}")
+        if path.exists():
+            for child in path.iterdir():
+                try:
+                    if child.is_file() or child.is_symlink():
+                        _ = child.unlink()
+                    else:
+                        _ = shutil.rmtree(child)
+                except Exception:
+                    pass
+        else:
+            _ = path.mkdir(parents=True, exist_ok=True)
     
     # Методы логирования для удобства
     

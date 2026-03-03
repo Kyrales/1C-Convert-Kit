@@ -164,6 +164,31 @@ class V8ToolWrapper(ToolWrapper):
         if ib_pwd:
             cmd.extend([f'/P{ib_pwd}'])
     
+    def _build_ib_connection_string(self, ib_connection: str) -> str:
+        """
+        Формирует строку для /IBConnectionString с учетом типа ИБ.
+        
+        Поддерживает:
+        - Файловую базу: путь или 'File=...;'
+        - Серверную базу: '/Sserver\\base' или 'Srvr=...;Ref=...;'
+        """
+        s = ib_connection.strip()
+        s_lower = s.lower()
+        # Уже готовая строка подключения
+        if s_lower.startswith('file=') or 'srvr=' in s_lower:
+            return s
+        # Формат /Sserver\base
+        if s.startswith('/S') or s.startswith('/s'):
+            rest = s[2:]
+            parts = rest.split('\\', 1)
+            if len(parts) == 2:
+                server, base = parts
+                return f'Srvr={server};Ref={base};'
+            # Если формат необычный, вернем как есть — ниже обработаем как путь
+        # Иначе считаем, что это путь к файловой ИБ
+        ib_path_str = s.replace('\\', '/')
+        return f'File={ib_path_str};'
+    
     def execute(self, *args: str, **kwargs: str) -> subprocess.CompletedProcess[str]:
         """
         Выполняет команду 1cv8.exe.
@@ -272,8 +297,7 @@ class V8ToolWrapper(ToolWrapper):
         
         # Формируем команду как список аргументов
         # Используем /IBConnectionString для DESIGNER
-        ib_path_str = str(ib_connection).replace('\\', '/')
-        ib_conn_string = f'File={ib_path_str};'
+        ib_conn_string = self._build_ib_connection_string(str(ib_connection))
         
         cmd = [
             str(self.tool_path),
@@ -356,8 +380,7 @@ class V8ToolWrapper(ToolWrapper):
         
         # Формируем команду как список аргументов
         # Используем /IBConnectionString для DESIGNER
-        ib_path_str = str(ib_connection).replace('\\', '/')
-        ib_conn_string = f'File={ib_path_str};'
+        ib_conn_string = self._build_ib_connection_string(str(ib_connection))
         
         cmd = [
             str(self.tool_path),
@@ -436,8 +459,7 @@ class V8ToolWrapper(ToolWrapper):
         
         self.logger.info(f"Выгрузка конфигурации в XML: {output_dir}...")
         
-        ib_path_str = str(ib_connection).replace('\\', '/')
-        ib_conn_string = f'File={ib_path_str};'
+        ib_conn_string = self._build_ib_connection_string(str(ib_connection))
         
         cmd = [
             str(self.tool_path),
@@ -501,8 +523,7 @@ class V8ToolWrapper(ToolWrapper):
         
         self.logger.info(f"Загрузка конфигурации из CF: {cf_file}...")
         
-        ib_path_str = str(ib_connection).replace('\\', '/')
-        ib_conn_string = f'File={ib_path_str};'
+        ib_conn_string = self._build_ib_connection_string(str(ib_connection))
         
         cmd = [
             str(self.tool_path),
@@ -570,8 +591,7 @@ class V8ToolWrapper(ToolWrapper):
         
         # Формируем команду как список аргументов
         # Используем /IBConnectionString для DESIGNER
-        ib_path_str = str(ib_connection).replace('\\', '/')
-        ib_conn_string = f'File={ib_path_str};'
+        ib_conn_string = self._build_ib_connection_string(str(ib_connection))
         
         # Команда /LoadExternalDataProcessorOrReportFromFiles требует два параметра:
         # 1. Путь к XML файлу обработки/отчета
@@ -787,6 +807,116 @@ class IbcmdToolWrapper(ToolWrapper):
             
         except subprocess.SubprocessError as e:
             raise ToolExecutionError(f"Ошибка запуска ibcmd.exe: {e}")
+
+    def export_config_to_files(
+        self,
+        db_path: Path,
+        output_dir: Path,
+        extension_name: Optional[str] = None
+    ) -> int:
+        """
+        Выгружает конфигурацию или расширение в XML файлы.
+        
+        Args:
+            db_path: Путь к ИБ
+            output_dir: Директория для выгрузки XML
+            extension_name: Имя расширения (если выгружается расширение)
+            
+        Returns:
+            int: Код возврата (0 - успех)
+            
+        Raises:
+            ToolNotFoundError: Если инструмент не найден
+            ToolExecutionError: Если выполнение завершилось с ошибкой
+        """
+        if not self.is_available():
+            raise ToolNotFoundError("ibcmd.exe не найден в системе")
+        
+        if extension_name:
+            self.logger.info(f"Выгрузка расширения '{extension_name}' в XML: {output_dir}...")
+        else:
+            self.logger.info(f"Выгрузка конфигурации в XML: {output_dir}...")
+        
+        ibcmd_data = self.env_vars.get('IBCMD_DATA', str(Path(self.env_vars.get('V8_TEMP', 'temp')) / 'ibcmd_data'))
+        ib_user = self.env_vars.get('V8_IB_USER', '')
+        ib_pwd = self.env_vars.get('V8_IB_PWD', '')
+        ib_server = self.env_vars.get('V8_IB_SERVER', '')
+        ib_name = self.env_vars.get('V8_IB_NAME', '')
+        if not ib_server:
+            src_path = self.env_vars.get('V8_SRC_PATH', '')
+            if src_path.startswith('/S'):
+                raw = src_path[2:]
+                if '\\' in raw:
+                    server_from_src, name_from_src = raw.split('\\', 1)
+                elif '/' in raw:
+                    server_from_src, name_from_src = raw.split('/', 1)
+                else:
+                    server_from_src, name_from_src = '', ''
+                if server_from_src and name_from_src:
+                    ib_server = server_from_src
+                    if not ib_name:
+                        ib_name = name_from_src
+                    self.logger.info("Используется V8_SRC_PATH для определения серверной ИБ")
+        
+        export_flags = ['--force']
+        if (output_dir / 'Configuration.xml').exists() and (output_dir / 'ConfigDumpInfo.xml').exists():
+            export_flags.append('--sync')
+        
+        if ib_server:
+            db_srv_dbms = self.env_vars.get('V8_DB_SRV_DBMS', 'MSSQLServer')
+            db_srv_usr = self.env_vars.get('V8_DB_SRV_USR', '')
+            db_srv_pwd = self.env_vars.get('V8_DB_SRV_PWD', '')
+            
+            cmd = [
+                str(self.tool_path),
+                'infobase', 'config', 'export',
+                f'--data={ibcmd_data}',
+                f'--dbms={db_srv_dbms}',
+                f'--db-server={ib_server}',
+                f'--db-name={ib_name}',
+                f'--db-user={db_srv_usr}',
+                f'--db-pwd={db_srv_pwd}',
+                f'--user={ib_user}',
+                f'--password={ib_pwd}'
+            ]
+        else:
+            # Используется только для файловых баз или для прямого указания пути к хранилищу данных автономного сервера
+            cmd = [
+                str(self.tool_path),
+                'infobase', 'config', 'export',
+                f'--data={ibcmd_data}',
+                f'--db-path={db_path}',
+                f'--user={ib_user}',
+                f'--password={ib_pwd}'
+            ]
+        
+        if extension_name:
+            cmd.extend(['--extension', extension_name])
+        
+        cmd.extend(export_flags)
+        cmd.append(str(output_dir))
+        
+        self._log_command(cmd)
+        
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+                errors='replace'
+            )
+            
+            if result.returncode != 0:
+                raise ToolExecutionError(
+                    "Ошибка при выгрузке конфигурации в XML",
+                    tool_output=result.stderr or result.stdout
+                )
+            
+            return result.returncode
+            
+        except subprocess.SubprocessError as e:
+            raise ToolExecutionError(f"Ошибка запуска ibcmd.exe: {e}")
     
     def save_config(
         self, 
@@ -826,10 +956,24 @@ class IbcmdToolWrapper(ToolWrapper):
         
         # Проверяем тип ИБ (файловая или серверная)
         ib_server = self.env_vars.get('V8_IB_SERVER', '')
+        ib_name = self.env_vars.get('V8_IB_NAME', '')
+        if not ib_server:
+            src_path = self.env_vars.get('V8_SRC_PATH', '')
+            if src_path.startswith('/S'):
+                raw = src_path[2:]
+                if '\\' in raw:
+                    server_from_src, name_from_src = raw.split('\\', 1)
+                elif '/' in raw:
+                    server_from_src, name_from_src = raw.split('/', 1)
+                else:
+                    server_from_src, name_from_src = '', ''
+                if server_from_src and name_from_src:
+                    ib_server = server_from_src
+                    if not ib_name:
+                        ib_name = name_from_src
+                    self.logger.info("Используется V8_SRC_PATH для определения серверной ИБ")
         
         if ib_server:
-            # Серверная ИБ
-            ib_name = self.env_vars.get('V8_IB_NAME', '')
             db_srv_dbms = self.env_vars.get('V8_DB_SRV_DBMS', 'MSSQLServer')
             db_srv_usr = self.env_vars.get('V8_DB_SRV_USR', '')
             db_srv_pwd = self.env_vars.get('V8_DB_SRV_PWD', '')
