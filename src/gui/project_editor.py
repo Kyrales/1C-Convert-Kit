@@ -22,6 +22,7 @@ class ProjectEditorDialog:
     def __init__(
         self, 
         params_descriptions: "dict[str, dict[str, str]] | None",
+        params_depend: "dict[str, dict[str, list[str]]] | None" = None,
         mode: str = 'add', 
         project_data: "dict[str, str] | ProjectDict | None" = None,
         existing_projects: "list[str] | None" = None
@@ -34,6 +35,7 @@ class ProjectEditorDialog:
             existing_projects: список существующих проектов для проверки дубликатов
         """
         self.params_descriptions = params_descriptions
+        self.params_depend = params_depend
         self.mode = mode
         self.project_data = project_data or {}
         self.existing_projects = existing_projects or []
@@ -68,6 +70,83 @@ class ProjectEditorDialog:
             except:
                 pass
         return {}
+    
+    def _get_saved_params(self, saved_values: "dict[str, str | dict[str, str]] | None") -> "dict[str, str]":
+        if not saved_values:
+            return {}
+        params_value = saved_values.get('params')
+        if isinstance(params_value, dict):
+            return {str(k): str(v) for k, v in params_value.items()}
+        return {}
+    
+    def _resolve_convert_tool(
+        self,
+        project_params: "dict[str, str]",
+        saved_values: "dict[str, str | dict[str, str]] | None"
+    ) -> str:
+        saved_params = self._get_saved_params(saved_values)
+        if 'V8_CONVERT_TOOL' in saved_params and saved_params['V8_CONVERT_TOOL']:
+            return saved_params['V8_CONVERT_TOOL']
+        if 'V8_CONVERT_TOOL' in project_params and project_params['V8_CONVERT_TOOL']:
+            return project_params['V8_CONVERT_TOOL']
+        base_value = self.base_env_params.get('V8_CONVERT_TOOL', '')
+        if base_value:
+            return base_value
+        return 'designer'
+    
+    def _is_param_visible(self, param_name: str, script_name: str, convert_tool: str) -> bool:
+        if not self.params_depend:
+            return True
+        
+        script_depend = self.params_depend.get('ScriptName', {})
+        tool_depend = self.params_depend.get('V8_CONVERT_TOOL', {})
+        
+        script_params_all: set[str] = set()
+        for params in script_depend.values():
+            script_params_all.update(params)
+        
+        tool_params_all: set[str] = set()
+        for params in tool_depend.values():
+            tool_params_all.update(params)
+        
+        script_visible = set(script_depend.get(script_name, []))
+        tool_visible = set(tool_depend.get(convert_tool, []))
+        
+        script_ok = param_name not in script_params_all or param_name in script_visible
+        tool_ok = param_name not in tool_params_all or param_name in tool_visible
+        
+        return script_ok and tool_ok
+    
+    def _get_depend_params(self, script_name: str, convert_tool: str) -> "set[str]":
+        if not self.params_depend:
+            return set()
+        
+        depend_params: set[str] = set()
+        script_depend = self.params_depend.get('ScriptName', {})
+        tool_depend = self.params_depend.get('V8_CONVERT_TOOL', {})
+        
+        depend_params.update(script_depend.get(script_name, []))
+        depend_params.update(tool_depend.get(convert_tool, []))
+        
+        return depend_params
+    
+    def _get_depend_tooltip(self, param_name: str, script_name: str, convert_tool: str) -> str:
+        if not self.params_depend:
+            return ''
+        
+        reasons: list[str] = []
+        script_depend = self.params_depend.get('ScriptName', {})
+        tool_depend = self.params_depend.get('V8_CONVERT_TOOL', {})
+        
+        if param_name in script_depend.get(script_name, []):
+            reasons.append(f'ScriptName={script_name}')
+        if param_name in tool_depend.get(convert_tool, []):
+            reasons.append(f'V8_CONVERT_TOOL={convert_tool}')
+        
+        if not reasons:
+            return ''
+        
+        return f"Depend - Зависимый от параметра {'; '.join(reasons)}"
     
     def _get_script_params(self, script_name: str) -> "dict[str, dict[str, str | bool]]":
         """
@@ -188,7 +267,11 @@ class ProjectEditorDialog:
         """Заменяет пробелы на подчеркивания в имени файла"""
         return name.replace(' ', '_')
     
-    def _create_layout(self, script_name: str | None = None) -> "tuple[list[list[object]], str]":
+    def _create_layout(
+        self,
+        script_name: str | None = None,
+        saved_values: "dict[str, str | dict[str, str]] | None" = None
+    ) -> "tuple[list[list[object]], str]":
         """Создает layout диалога"""
         # Заголовок окна
         if self.mode == 'add':
@@ -210,8 +293,13 @@ class ProjectEditorDialog:
             except:
                 pass
         
+        saved_params = self._get_saved_params(saved_values)
+        convert_tool = self._resolve_convert_tool(project_params, saved_values)
+        
         # Получаем параметры для выбранного скрипта
         script_params = self._get_script_params(current_script)
+        
+        depend_params = self._get_depend_params(current_script, convert_tool)
         
         # Сортируем параметры: обязательные, включенные, выключенные
         required_params = []
@@ -219,7 +307,10 @@ class ProjectEditorDialog:
         disabled_params = []
         
         for param, info in script_params.items():
-            param_enabled = param in project_params
+            if not self._is_param_visible(param, current_script, convert_tool):
+                continue
+            
+            param_enabled = param in project_params or param in saved_params
             
             if info['required']:
                 required_params.append((param, info, param_enabled))
@@ -228,10 +319,16 @@ class ProjectEditorDialog:
             else:
                 disabled_params.append((param, info, param_enabled))
         
-        # Сортируем внутри групп по имени
-        required_params.sort(key=lambda x: x[0])
-        enabled_params.sort(key=lambda x: x[0])
-        disabled_params.sort(key=lambda x: x[0])
+        def param_sort_key(item: "tuple[str, dict[str, str | bool], bool]") -> "tuple[int, int, str]":
+            param_name = item[0]
+            category = self._get_param_category(param_name, current_script)
+            category_rank = 0 if category == 'special' else 2
+            tool_rank = 1 if param_name == 'V8_CONVERT_TOOL' else 2
+            return (category_rank, tool_rank, param_name)
+        
+        required_params.sort(key=param_sort_key)
+        enabled_params.sort(key=param_sort_key)
+        disabled_params.sort(key=param_sort_key)
         
         all_params = required_params + enabled_params + disabled_params
         
@@ -268,7 +365,7 @@ class ProjectEditorDialog:
         params_column = []
         
         for param, info, is_enabled in all_params:
-            param_value = project_params.get(param, '')
+            param_value = saved_params.get(param, project_params.get(param, ''))
             is_required = info['required']
             param_type = info['type']
             
@@ -281,7 +378,10 @@ class ProjectEditorDialog:
             if is_enabled or is_required:
                 display_value = param_value
             else:
-                display_value = f"{base_value} (base_1.env)" if base_value else ''
+                if param == 'V8_CONVERT_TOOL':
+                    display_value = base_value or convert_tool
+                else:
+                    display_value = f"{base_value} (base_1.env)" if base_value else ''
             
             # Определяем категорию параметра для маркера
             param_category = self._get_param_category(param, current_script)
@@ -293,7 +393,13 @@ class ProjectEditorDialog:
             
             # Маркер категории параметра (S - special, N - not described)
             marker_elements = []
-            if param_category == 'special':
+            if param in depend_params:
+                depend_tooltip = self._get_depend_tooltip(param, current_script, convert_tool)
+                marker = sg.Text('D', size=(2, 1), text_color=COLORS['accent'], 
+                               background_color=COLORS['bg'], font=('Consolas', 10, 'bold'),
+                               tooltip=depend_tooltip or 'Depend - зависимый от параметра')
+                marker_elements.append(marker)
+            elif param_category == 'special':
                 marker = sg.Text('S', size=(2, 1), text_color=COLORS['cyan'], 
                                background_color=COLORS['bg'], font=('Consolas', 10, 'bold'),
                                tooltip='Special - специальная настройка проекта')
@@ -323,7 +429,14 @@ class ProjectEditorDialog:
             # Контекстное меню для поддержки Ctrl+C/V/X/A
             right_click_menu = ['', ['Копировать', 'Вставить', 'Вырезать', 'Выделить все', '---', 'Отменить']]
             
-            if param_type == 'boolean':
+            if param == 'V8_CONVERT_TOOL':
+                input_field = sg.Combo(['designer', 'ibcmd'], default_value=display_value or convert_tool, 
+                                      key=f'-VAL_{param}-', size=(45, 1), readonly=True, enable_events=True,
+                                      background_color=enabled_bg if (is_enabled or is_required) else disabled_bg,
+                                      text_color=text_color,
+                                      disabled=not (is_enabled or is_required),
+                                      metadata={'base_value': base_value})
+            elif param_type == 'boolean':
                 input_field = sg.Combo(['0', '1'], default_value=display_value or '0', 
                                       key=f'-VAL_{param}-', size=(45, 1), readonly=True,
                                       background_color=enabled_bg if (is_enabled or is_required) else disabled_bg,
@@ -461,6 +574,15 @@ class ProjectEditorDialog:
                         saved_values = values_value  # type: ignore[assignment, type-var]
                     continue
                 
+                if isinstance(result, dict) and result.get('_action') == 'change_convert_tool':
+                    script_value = result.get('script')
+                    if isinstance(script_value, str):
+                        current_script = script_value
+                    values_value = result.get('values')
+                    if isinstance(values_value, dict):
+                        saved_values = values_value  # type: ignore[assignment, type-var]
+                    continue
+                
                 # Иначе возвращаем результат (None или данные проекта)
                 return result
                 
@@ -474,7 +596,7 @@ class ProjectEditorDialog:
     
     def _show_window(self, script_name: str | None = None, saved_values: "dict[str, str | dict[str, str]] | None" = None) -> "dict[str, str | dict[str, str]] | None":
         """Внутренний метод для показа окна"""
-        layout, title = self._create_layout(script_name=script_name)
+        layout, title = self._create_layout(script_name=script_name, saved_values=saved_values)
         
         icon_path = PROJECTS_DIR.parent / 'docs' / 'images' / 'icons8-cyberpunk-gradient-16.ico'
         self.window = sg.Window(  # type: ignore[assignment, attr-defined]
@@ -561,6 +683,48 @@ class ProjectEditorDialog:
                     # Не закрываем окно, продолжаем работу
                     continue
             
+            elif event == '-VAL_V8_CONVERT_TOOL-':
+                try:
+                    current_values: "dict[str, str | dict[str, str]]" = {
+                        'name': str(values['-NAME-']),  # type: ignore[index]
+                        'params': {}
+                    }
+                    if values is not None:  # type: ignore[attr-defined]
+                        for key, value in values.items():  # type: ignore[union-attr]
+                            if isinstance(key, str) and key.startswith('-VAL_'):
+                                param_name = key[5:]
+                                if value and not str(value).endswith('(base_1.env)'):
+                                    params_dict = current_values['params']
+                                    if isinstance(params_dict, dict):
+                                        params_dict[param_name] = str(value)
+                    
+                    selected_tool = None
+                    if '-VAL_V8_CONVERT_TOOL-' in self.window.AllKeysDict:  # type: ignore[attr-defined, union-attr]
+                        selected_tool_value = self.window['-VAL_V8_CONVERT_TOOL-'].get()  # type: ignore[index, attr-defined, union-attr]
+                        if selected_tool_value:
+                            selected_tool = str(selected_tool_value)
+                    if selected_tool:
+                        params_dict = current_values['params']
+                        if isinstance(params_dict, dict):
+                            params_dict['V8_CONVERT_TOOL'] = selected_tool
+                    
+                    current_script_name: str = values['-SCRIPT-']  # type: ignore[index]
+                    
+                    _ = self.window.close()  # type: ignore[attr-defined]
+                    
+                    return {  # type: ignore[return-value]
+                        '_action': 'change_convert_tool',
+                        'script': current_script_name,
+                        'values': current_values
+                    }
+                except Exception as e:
+                    import traceback
+                    traceback.print_exc()
+                    _ = sg.popup_error(f"Ошибка при смене инструмента:\n{e}\n\nПодробности в консоли",  # type: ignore[attr-defined]
+                                  background_color=COLORS['bg'],
+                                  text_color=COLORS['error'])
+                    continue
+            
             # Изменение чекбокса - обновляем доступность поля и цвет фона
             elif isinstance(event, str) and event.startswith('-CHK_'):
                 param_name = event[5:-1]  # Убираем '-CHK_' и '-'
@@ -580,11 +744,15 @@ class ProjectEditorDialog:
                 # - Если включаем чекбокс - очищаем поле (пользователь будет вводить свое значение)
                 # - Если выключаем чекбокс - показываем значение из base_env с пометкой
                 if is_checked:
-                    # Включили чекбокс - очищаем поле
-                    new_value = ''
+                    if param_name == 'V8_CONVERT_TOOL':
+                        new_value = base_value or 'designer'
+                    else:
+                        new_value = ''
                 else:
-                    # Выключили чекбокс - показываем информационное значение из base_env
-                    new_value = f"{base_value} (base_1.env)" if base_value else ''
+                    if param_name == 'V8_CONVERT_TOOL':
+                        new_value = base_value or 'designer'
+                    else:
+                        new_value = f"{base_value} (base_1.env)" if base_value else ''
                 
                 _ = self.window[value_key].update(value=new_value, disabled=not is_checked,  # type: ignore[index, attr-defined, call-overload]
                                              background_color=new_bg, text_color=new_text_color)

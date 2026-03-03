@@ -1,4 +1,7 @@
 @echo off
+chcp 65001 > nul
+setlocal
+pushd "%~dp0"
 REM Скрипт для запуска всех GUI тестов
 REM Автоматизированные тесты запускаются без взаимодействия
 REM Интерактивные тесты требуют ручного закрытия
@@ -10,7 +13,7 @@ echo.
 
 echo 1. Unit-тесты (без GUI)...
 echo --------------------------------------------------------------------------------
-python test_project_editor_unit.py
+python "test_project_editor_unit.py"
 if %ERRORLEVEL% NEQ 0 (
     echo ОШИБКА: Unit-тесты не прошли!
     exit /b 1
@@ -19,7 +22,7 @@ echo.
 
 echo 2. Автоматизированный GUI тест (автозакрытие)...
 echo --------------------------------------------------------------------------------
-python test_project_editor_auto.py
+python "test_project_editor_auto.py"
 if %ERRORLEVEL% NEQ 0 (
     echo ОШИБКА: Автоматизированный GUI тест не прошел!
     exit /b 1
@@ -31,9 +34,11 @@ echo АВТОМАТИЗИРОВАННЫЕ ТЕСТЫ ЗАВЕРШЕНЫ УСПЕ
 echo ================================================================================
 echo.
 echo Для запуска интерактивных тестов (требуют ручного закрытия):
-echo   python test_simple_dialog.py
-echo   python test_clipboard.py
-echo   python test_editor_improvements.py
+echo   python "test_simple_dialog.py"
+echo   python "test_clipboard.py"
+echo   python "test_editor_improvements.py"
 echo.
 
+popd
+endlocal
 exit /b 0

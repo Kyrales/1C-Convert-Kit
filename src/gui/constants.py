@@ -29,3 +29,4 @@ SCRIPT_DIR = Path(__file__).parent.parent.parent  # Корень проекта
 PROJECTS_DIR = SCRIPT_DIR / 'projects'
 CONVERT_SCRIPT = SCRIPT_DIR / 'src' / 'core' / 'convert.py'
 PARAMS_DESC_FILE = SCRIPT_DIR / 'src' / 'config' / 'params_descriptions.json'
+PARAMS_DEPEND_FILE = SCRIPT_DIR / 'src' / 'config' / 'params_depend.json'

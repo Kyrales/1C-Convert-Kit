@@ -1,0 +1,43 @@
+{
+  "V8_CONVERT_TOOL": {
+    "ibcmd": [
+      "V8_DB_SRV_DBMS",
+      "V8_IB_SERVER",
+      "V8_IB_NAME",
+      "V8_DB_SRV_USR",
+      "V8_DB_SRV_PWD",
+      "IBCMD_DATA",
+      "IBCMD_TOOL"
+    ]
+  },
+  "ScriptName": {
+    "conf2xml": [
+      "V8_CONF_CLEAN_DST"
+    ],
+    "conf2edt": [
+      "V8_CONF_CLEAN_DST"
+    ],
+    "conf2cf": [
+    ],
+    "dp2xml": [
+      "V8_DP_CLEAN_DST"
+    ],
+    "dp2edt": [
+      "V8_DP_CLEAN_DST"
+    ],
+    "dp2epf": [
+    ],
+    "ext2xml": [
+      "V8_EXT_CLEAN_DST"
+    ],
+    "ext2edt": [
+      "V8_EXT_CLEAN_DST"
+    ],
+    "ext2cfe": [
+    ],
+    "ext2ib": [
+    ],
+    "edt-validate": [
+    ]
+  }
+}

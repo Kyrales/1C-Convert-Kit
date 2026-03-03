@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 from .sg_import import sg
 from ..core.convert import load_env_file
-from .constants import VERSION, COLORS, SCRIPT_DIR, PROJECTS_DIR, PARAMS_DESC_FILE
+from .constants import VERSION, COLORS, SCRIPT_DIR, PROJECTS_DIR, PARAMS_DESC_FILE, PARAMS_DEPEND_FILE
 from .project_scanner import ProjectScanner
 from .project_editor import ProjectEditorDialog
 from .conversion_runner import ConversionRunner
@@ -32,6 +32,7 @@ class CyberpunkGUI:
         self.runner: ConversionRunner | None = None
         self.conversion_thread: threading.Thread | None = None
         self.params_descriptions: dict[str, dict[str, str]] | None = self._load_params_descriptions()
+        self.params_depend: dict[str, dict[str, list[str]]] | None = self._load_params_depend()
         self.debug_mode: bool = False  # Режим отладки
         
         # Настраиваем тему
@@ -73,6 +74,18 @@ class CyberpunkGUI:
                 import json
                 with open(PARAMS_DESC_FILE, 'r', encoding='utf-8') as f:
                     data: dict[str, dict[str, str]] = json.load(f)
+                    return data
+        except Exception:
+            pass
+        return None
+    
+    def _load_params_depend(self) -> dict[str, dict[str, list[str]]] | None:
+        """Загружает зависимости параметров из JSON файла"""
+        try:
+            if PARAMS_DEPEND_FILE.exists():
+                import json
+                with open(PARAMS_DEPEND_FILE, 'r', encoding='utf-8') as f:
+                    data: dict[str, dict[str, list[str]]] = json.load(f)
                     return data
         except Exception:
             pass
@@ -747,6 +760,7 @@ class CyberpunkGUI:
         
         dialog = ProjectEditorDialog(
             self.params_descriptions,
+            params_depend=self.params_depend,
             mode='add',
             existing_projects=existing_names
         )
@@ -779,6 +793,7 @@ class CyberpunkGUI:
         
         dialog = ProjectEditorDialog(
             self.params_descriptions,
+            params_depend=self.params_depend,
             mode='edit',
             project_data=project,  # type: ignore[arg-type]
             existing_projects=existing_names
@@ -845,6 +860,7 @@ class CyberpunkGUI:
         
         dialog = ProjectEditorDialog(
             self.params_descriptions,
+            params_depend=self.params_depend,
             mode='copy',
             project_data=project,  # type: ignore[arg-type]
             existing_projects=existing_names
