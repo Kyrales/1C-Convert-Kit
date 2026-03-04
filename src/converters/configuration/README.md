@@ -31,7 +31,7 @@
 - `V8_VERSION` - версия платформы 1С (по умолчанию `8.3.27.1989`)
 - `IBCMD_TOOL` - путь к ibcmd.exe
 - `RING_TOOL` - путь к ring.bat
-- `EDT_TOOL` - путь к 1cedtcli.exe
+- `EDTCLI_TOOL` - путь к 1cedtcli.exe
 - `V8_EDT_VERSION` - версия EDT (по умолчанию `2025.1.5`)
 - `V8_TEMP` - директория для временных файлов
 

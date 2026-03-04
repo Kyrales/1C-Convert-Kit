@@ -22,6 +22,7 @@ if str(_SRC_DIR) not in sys.path:
     sys.path.insert(0, str(_SRC_DIR))
 
 from utils.time_utils import format_duration  # type: ignore
+from .ib_utils import parse_ib_reference
 
 
 class Colors:
@@ -193,8 +194,9 @@ class SourceDetector:
         if path_obj.is_dir() and (path_obj / '1cv8.1cd').exists():
             return SourceType.FILE_IB
         
-        # Проверка на серверную ИБ (формат /Sserver\basename)
-        if path.startswith('/S'):
+        # Проверка на серверную ИБ
+        is_server, _, _ = parse_ib_reference(path)
+        if is_server:
             return SourceType.SERVER_IB
         
         # Проверка на файловую ИБ (формат /Fpath)
@@ -536,7 +538,8 @@ class BaseConverter(ABC):
         
         # Проверка существования источника
         src_path_obj = Path(self.src_path)
-        if not src_path_obj.exists() and not self.src_path.startswith('/S') and not self.src_path.startswith('/F'):
+        is_server, _, base = parse_ib_reference(self.src_path)
+        if not src_path_obj.exists() and not is_server and not (base and Path(base).exists()):
             raise ValidationError(f"Источник не найден: {self.src_path}")
         
         # Специфичная валидация конвертера

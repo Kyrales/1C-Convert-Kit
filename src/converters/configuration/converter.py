@@ -8,7 +8,7 @@
 """
 
 from pathlib import Path
-from typing import Dict, Optional, Callable
+from typing import Dict, Optional, Callable, Union
 
 from ..base.converter import (
     BaseConverter,
@@ -18,6 +18,7 @@ from ..base.converter import (
     ToolExecutionError
 )
 from ..base.tools import V8ToolWrapper, IbcmdToolWrapper, EdtToolWrapper
+from ..base.ib_utils import parse_ib_reference
 
 
 class ConfigurationConverter(BaseConverter):
@@ -147,10 +148,11 @@ class ConfigurationConverter(BaseConverter):
             )
 
     def _get_file_ib_path_from_value(self, value: str) -> Optional[Path]:
-        if value.startswith('/S'):
+        is_server, _, base = parse_ib_reference(value)
+        if is_server:
             return None
-        if value.startswith('/F'):
-            return Path(value[2:])
+        if base:
+            return Path(base)
         return Path(value)
 
     def _ensure_dir(self, path: Path) -> None:
@@ -161,21 +163,16 @@ class ConfigurationConverter(BaseConverter):
         return f"File={ib_dir_str};"
 
     def _set_server_ib_env(self, ib_path: str) -> None:
-        if not ib_path.startswith('/S'):
+        is_server, server, name = parse_ib_reference(ib_path)
+        if not is_server:
             return
-        has_name = bool(self.env_vars.get('V8_IB_NAME'))
-        raw = ib_path[2:]
-        if '\\' in raw:
-            server, name = raw.split('\\', 1)
-        elif '/' in raw:
-            server, name = raw.split('/', 1)
-        else:
-            raise ValidationError(f"Некорректный путь серверной ИБ: {ib_path}")
         if not server or not name:
             raise ValidationError(f"Некорректный путь серверной ИБ: {ib_path}")
-        if not has_name:
+        if not self.env_vars.get('V8_IB_SERVER'):
+            self.env_vars['V8_IB_SERVER'] = server
+        if not self.env_vars.get('V8_IB_NAME'):
             self.env_vars['V8_IB_NAME'] = name
-            self.log_info("V8_IB_NAME не задан, использовано значение из V8_SRC_PATH")
+            self.log_info("V8_IB_NAME не задан, использовано значение из пути серверной ИБ")
 
     def _create_file_ib_if_missing(self, ib_dir: Path, log_file: Path) -> None:
         if (ib_dir / '1cv8.1cd').exists():
@@ -200,7 +197,7 @@ class ConfigurationConverter(BaseConverter):
                 temp_dir=self.temp_dir
             )
 
-    def _dump_file_ib_to_cf(self, ib_connection: str | Path, output_file: Path, log_file: Path) -> None:
+    def _dump_file_ib_to_cf(self, ib_connection: Union[str, Path], output_file: Path, log_file: Path) -> None:
         result = self.v8_tool.dump_config(
             ib_connection=str(ib_connection),
             output_file=output_file,
@@ -212,7 +209,7 @@ class ConfigurationConverter(BaseConverter):
                 temp_dir=self.temp_dir
             )
 
-    def _dump_file_ib_to_xml(self, ib_connection: str | Path, output_dir: Path, log_file: Path) -> None:
+    def _dump_file_ib_to_xml(self, ib_connection: Union[str, Path], output_dir: Path, log_file: Path) -> None:
         result = self.v8_tool.dump_config_to_files(
             ib_connection=str(ib_connection),
             output_dir=output_dir,
@@ -303,35 +300,51 @@ class ConfigurationConverter(BaseConverter):
                 self.start_stage("Загрузка конфигурации в ИБ")
                 self.report_progress("Загрузка XML -> IB", 50)
                 ib_dir = self._get_file_ib_path_from_value(self.dst_path)
-                if ib_dir is None:
-                    raise ValidationError("Серверная ИБ для conf2ib не поддерживается в текущей реализации")
-                self._ensure_dir(ib_dir)
                 if self.convert_tool == 'ibcmd':
                     if not self.ibcmd_tool.is_available():
                         raise ToolNotFoundError(
                             "ibcmd.exe не найден. " +
                             "Установите платформу 1С или укажите путь в переменной IBCMD_TOOL"
                         )
-                    if (ib_dir / '1cv8.1cd').exists():
-                        result = self.ibcmd_tool.import_config(
-                            db_path=ib_dir,
+                    if ib_dir is None:
+                        # Серверная ИБ: используем ibcmd с серверными параметрами
+                        self._set_server_ib_env(self.dst_path)
+                        result = self.ibcmd_tool.import_config_from_xml(
+                            db_path=Path('.'),
                             xml_path=temp_xml
                         )
                     else:
-                        result = self.ibcmd_tool.create_infobase_with_config(
-                            db_path=ib_dir,
-                            xml_path=temp_xml
-                        )
+                        # Файловая ИБ
+                        self._ensure_dir(ib_dir)
+                        if (ib_dir / '1cv8.1cd').exists():
+                            result = self.ibcmd_tool.import_config_from_xml(
+                                db_path=ib_dir,
+                                xml_path=temp_xml
+                            )
+                        else:
+                            result = self.ibcmd_tool.create_infobase_with_config(
+                                db_path=ib_dir,
+                                xml_path=temp_xml
+                            )
                     if result != 0:
                         raise ToolExecutionError(
                             "Ошибка при создании ИБ и загрузке конфигурации через ibcmd",
                             temp_dir=self.temp_dir
                         )
                 else:
-                    create_log = self.temp_dir / 'create_ib.log'
-                    self._create_file_ib_if_missing(ib_dir, create_log)
-                    load_log = self.temp_dir / 'load_config.log'
-                    self._load_xml_into_file_ib(ib_dir, temp_xml, load_log)
+                    if ib_dir is None:
+                        load_log = self.temp_dir / 'load_config_server.log'
+                        result = self.v8_tool.load_config_from_files(
+                            ib_connection=self.dst_path,
+                            xml_path=temp_xml,
+                            log_file=load_log
+                        )
+                    else:
+                        self._ensure_dir(ib_dir)
+                        create_log = self.temp_dir / 'create_ib.log'
+                        self._create_file_ib_if_missing(ib_dir, create_log)
+                        load_log = self.temp_dir / 'load_config.log'
+                        self._load_xml_into_file_ib(ib_dir, temp_xml, load_log)
                 self.end_stage("Конфигурация успешно загружена в ИБ")
                 self.report_progress("Конвертация завершена", 100)
                 return 0
@@ -473,21 +486,42 @@ class ConfigurationConverter(BaseConverter):
         try:
             if script_name == 'conf2ib':
                 ib_dir = self._get_file_ib_path_from_value(self.dst_path)
-                if ib_dir is None:
-                    raise ValidationError("Серверная ИБ для conf2ib не поддерживается в текущей реализации")
                 if self.convert_tool == 'ibcmd':
-                    self._ensure_dir(ib_dir)
                     self.report_progress("Создание ИБ и загрузка конфигурации", 20)
-                    if (ib_dir / '1cv8.1cd').exists():
-                        result = self.ibcmd_tool.import_config(
-                            db_path=ib_dir,
-                            xml_path=Path(self.src_path)
-                        )
+                    src_path_obj = Path(self.src_path)
+                    if ib_dir is None:
+                        # Серверная ИБ: используем ibcmd
+                        self._set_server_ib_env(self.dst_path)
+                        if src_path_obj.suffix.lower() == '.cf':
+                            result = self.ibcmd_tool.import_config_from_cf(
+                                db_path=Path('.'),
+                                cf_file=src_path_obj
+                            )
+                        else:
+                            result = self.ibcmd_tool.import_config_from_xml(
+                                db_path=Path('.'),
+                                xml_path=src_path_obj
+                            )
                     else:
-                        result = self.ibcmd_tool.create_infobase_with_config(
-                            db_path=ib_dir,
-                            xml_path=Path(self.src_path)
-                        )
+                        # Файловая ИБ
+                        self._ensure_dir(ib_dir)
+                        if (ib_dir / '1cv8.1cd').exists():
+                            if src_path_obj.suffix.lower() == '.cf':
+                                result = self.ibcmd_tool.import_config_from_cf(
+                                    db_path=ib_dir,
+                                    cf_file=src_path_obj
+                                )
+                            else:
+                                result = self.ibcmd_tool.import_config_from_xml(
+                                    db_path=ib_dir,
+                                    xml_path=src_path_obj
+                                )
+                        else:
+                            # Создание файловой ИБ с конфигурацией из XML
+                            result = self.ibcmd_tool.create_infobase_with_config(
+                                db_path=ib_dir,
+                                xml_path=src_path_obj
+                            )
                     if result != 0:
                         raise ToolExecutionError(
                             "Ошибка при создании ИБ и загрузке конфигурации через ibcmd",
@@ -497,14 +531,30 @@ class ConfigurationConverter(BaseConverter):
                     self.report_progress("Конвертация завершена", 100)
                     return 0
                 else:
-                    create_log = self.temp_dir / 'create_ib.log'
-                    self._ensure_dir(ib_dir)
-                    self._create_file_ib_if_missing(ib_dir, create_log)
-                    load_log = self.temp_dir / 'load_config.log'
-                    self._load_xml_into_file_ib(ib_dir, Path(self.src_path), load_log)
-                    self.end_stage("Конфигурация загружена в ИБ")
-                    self.report_progress("Конвертация завершена", 100)
-                    return 0
+                    if ib_dir is None:
+                        load_log = self.temp_dir / 'load_config_server.log'
+                        result = self.v8_tool.load_config_from_files(
+                            ib_connection=self.dst_path,
+                            xml_path=Path(self.src_path),
+                            log_file=load_log
+                        )
+                        if result != 0:
+                            raise ToolExecutionError(
+                                "Ошибка при загрузке конфигурации из XML в серверную ИБ",
+                                temp_dir=self.temp_dir
+                            )
+                        self.end_stage("Конфигурация загружена в серверную ИБ")
+                        self.report_progress("Конвертация завершена", 100)
+                        return 0
+                    else:
+                        create_log = self.temp_dir / 'create_ib.log'
+                        self._ensure_dir(ib_dir)
+                        self._create_file_ib_if_missing(ib_dir, create_log)
+                        load_log = self.temp_dir / 'load_config.log'
+                        self._load_xml_into_file_ib(ib_dir, Path(self.src_path), load_log)
+                        self.end_stage("Конфигурация загружена в ИБ")
+                        self.report_progress("Конвертация завершена", 100)
+                        return 0
             elif script_name == 'conf2xml':
                 import shutil
                 dst_dir = Path(self.dst_path)
@@ -527,8 +577,9 @@ class ConfigurationConverter(BaseConverter):
             else:
                 temp_db = self.temp_dir / 'tmp_db'
                 self._ensure_dir(temp_db)
+                output_file = Path(self.dst_path)
                 if self.convert_tool == 'ibcmd':
-                    self.log_info("Использование ibcmd для конвертации")
+                    self.log_info("Использование ibcmd для конвертации XML -> CF")
                     self.report_progress("Создание ИБ и загрузка конфигурации", 20)
                     result = self.ibcmd_tool.create_infobase_with_config(
                         db_path=temp_db,
@@ -541,7 +592,6 @@ class ConfigurationConverter(BaseConverter):
                         )
                     self.end_stage("ИБ создана и конфигурация загружена")
                     self.report_progress("Сохранение конфигурации в CF", 60)
-                    output_file = Path(self.dst_path)
                     result = self.ibcmd_tool.save_config(
                         db_path=temp_db,
                         output_file=output_file
@@ -552,7 +602,7 @@ class ConfigurationConverter(BaseConverter):
                             temp_dir=self.temp_dir
                         )
                 else:
-                    self.log_info("Использование designer для конвертации")
+                    self.log_info("Использование designer для конвертации XML -> CF")
                     self.start_stage("Этап 1/3: Создание временной ИБ")
                     self.report_progress("Создание ИБ", 20)
                     log_file = self.temp_dir / 'create_ib.log'
@@ -565,10 +615,8 @@ class ConfigurationConverter(BaseConverter):
                     self.end_stage("Конфигурация загружена в ИБ")
                     self.start_stage("Этап 3/3: Выгрузка конфигурации в CF файл")
                     self.report_progress("Выгрузка IB -> CF", 70)
-                    output_file = Path(self.dst_path)
                     dump_log_file = self.temp_dir / 'dump_config.log'
                     self._dump_file_ib_to_cf(temp_db, output_file, dump_log_file)
-                output_file = Path(self.dst_path)
                 if not output_file.exists():
                     raise ToolExecutionError(
                         f"Выходной файл не создан: {output_file}",
@@ -583,6 +631,8 @@ class ConfigurationConverter(BaseConverter):
             if self.temp_manager:
                 self.temp_manager.preserve_on_error()
             raise
+        
+        return 0
     
     def _convert_from_ib(self) -> int:
         """
@@ -789,6 +839,10 @@ class ConfigurationConverter(BaseConverter):
             self.log_info("Конвертация CF -> EDT")
             self.report_progress("Конвертация CF -> EDT", 0)
             target_format = "EDT"
+        elif script_name == 'conf2ib':
+            self.log_info("Конвертация CF -> IB")
+            self.report_progress("Конвертация CF -> IB", 0)
+            target_format = "IB"
         else:
             raise ValidationError(
                 f"Неподдерживаемый тип конвертации из CF: {script_name}. " +
@@ -812,6 +866,51 @@ class ConfigurationConverter(BaseConverter):
         assert self.temp_dir is not None, "temp_dir должна быть создана перед конвертацией"
         
         try:
+            # Прямая загрузка CF в целевую ИБ
+            if target_format == "IB":
+                cf_file = Path(self.src_path)
+                self.start_stage("Загрузка CF в целевую ИБ")
+                self.report_progress("Загрузка конфигурации", 40)
+                if self.convert_tool == 'ibcmd' and self.ibcmd_tool.is_available():
+                    dst_is_server = self._get_file_ib_path_from_value(self.dst_path) is None
+                    if dst_is_server:
+                        self._set_server_ib_env(self.dst_path)
+                        result = self.ibcmd_tool.import_config_from_cf(
+                            db_path=Path('.'),
+                            cf_file=cf_file
+                        )
+                    else:
+                        dst_ib_dir = self._get_file_ib_path_from_value(self.dst_path)
+                        assert dst_ib_dir is not None
+                        self._ensure_dir(dst_ib_dir)
+                        result = self.ibcmd_tool.import_config_from_cf(
+                            db_path=dst_ib_dir,
+                            cf_file=cf_file
+                        )
+                else:
+                    load_log_file = self.temp_dir / 'load_cf.log'
+                    dst_is_server = self._get_file_ib_path_from_value(self.dst_path) is None
+                    if dst_is_server:
+                        result = self.v8_tool.load_config_from_cf(
+                            ib_connection=self.dst_path,
+                            cf_file=cf_file,
+                            log_file=load_log_file
+                        )
+                    else:
+                        dst_ib_dir = self._get_file_ib_path_from_value(self.dst_path)
+                        assert dst_ib_dir is not None
+                        self._ensure_dir(dst_ib_dir)
+                        result = self.v8_tool.load_config_from_cf(
+                            ib_connection=str(dst_ib_dir),
+                            cf_file=cf_file,
+                            log_file=load_log_file
+                        )
+                if result != 0:
+                    raise ToolExecutionError("Ошибка при загрузке CF файла в целевую ИБ", temp_dir=self.temp_dir)
+                self.end_stage("Конфигурация успешно загружена в ИБ")
+                self.report_progress("Конвертация завершена", 100)
+                return 0
+            
             # Этап 1: Создаем временную ИБ
             self.start_stage("Этап 1/3: Создание временной ИБ...")
             self.report_progress("Создание временной ИБ", 10)

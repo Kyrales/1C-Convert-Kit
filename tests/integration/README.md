@@ -149,6 +149,36 @@
   - Наличие `Configuration.xml` и его ненулевой размер
 - Использует IBCMD_TOOL и параметры из base_test.env
 
+**Тест 32: test_conf2ib_from_xml_to_server_ib_designer**
+- Загрузка XML конфигурации в серверную ИБ через 1cv8.exe (DESIGNER)
+- Этапы:
+  - Очистка серверной базы загрузкой пустого CF (`tests/fixtures/edt_xml/ПустаяКонфигурация.cf`)
+  - Импорт XML (`tests/fixtures/cf/ConfXML`) в `/Skantor\test_for_1c_convert_kit_2ib`
+  - Верификация: выгрузка в XML через DESIGNER и проверка `Configuration.xml`
+
+**Тест 33: test_conf2ib_from_xml_to_server_ib_ibcmd**
+- Загрузка XML конфигурации в серверную ИБ через IBCMD
+- Этапы:
+  - Очистка серверной базы пустым CF
+  - Импорт XML в `/Skantor\test_for_1c_convert_kit_2ib` через IBCMD
+  - Верификация: выгрузка в XML через DESIGNER
+- Примечание: пропускается, если параметры серверной БД для IBCMD не настроены или импорт недоступен
+
+**Тест 34: test_load_cf_to_server_ib_designer**
+- Загрузка CF конфигурации (`tests/fixtures/edt_xml/demo_otus_edt.cf`) в серверную ИБ через DESIGNER
+- Этапы:
+  - Очистка пустым CF
+  - Загрузка CF
+  - Верификация: выгрузка в XML через DESIGNER и проверка `Configuration.xml`
+
+**Тест 35: test_conf2ib_from_cf_to_server_ib_ibcmd**
+- Загрузка CF конфигурации в серверную ИБ через IBCMD
+- Этапы:
+  - Очистка серверной базы пустым CF
+  - Импорт CF (`tests/fixtures/edt_xml/demo_otus_edt.cf`) в `/Skantor\test_for_1c_convert_kit_2ib` через IBCMD
+  - Верификация: выгрузка в XML через DESIGNER
+- Примечание: пропускается, если параметры серверной БД для IBCMD не настроены или импорт недоступен
+
 **Тест 30: test_ib2cf_from_server_ib_ibcmd**
 - Выгрузка конфигурации из серверной ИБ в CF через IBCMD
 - Этапы:

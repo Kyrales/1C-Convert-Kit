@@ -28,7 +28,7 @@
 - `V8_TOOL` - путь к 1cv8.exe
 - `V8_VERSION` - версия платформы 1С (по умолчанию `8.3.27.1989`)
 - `IBCMD_TOOL` - путь к ibcmd.exe
-- `EDT_TOOL` - путь к 1cedtcli.exe
+- `EDTCLI_TOOL` - путь к 1cedtcli.exe
 
 ## Примеры использования
 

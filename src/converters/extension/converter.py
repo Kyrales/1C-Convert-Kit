@@ -452,12 +452,9 @@ class ExtensionConverter(BaseConverter):
         try:
             output_file = Path(self.dst_path)
             
-            # Формируем строку подключения
-            if self.src_path.startswith('/S') or self.src_path.startswith('/F'):
-                # Убираем префикс /F или /S, оставляем только путь
-                ib_connection = self.src_path[2:] if self.src_path.startswith('/F') else self.src_path
-            else:
-                ib_connection = self.src_path
+            from ..base.ib_utils import parse_ib_reference
+            is_server, _, base = parse_ib_reference(self.src_path)
+            ib_connection = self.src_path if is_server else (base or self.src_path)
             
             self.log_info(f"Подключение к ИБ: {ib_connection}")
             self.log_info(f"Выгрузка расширения: {self.ext_name}")
@@ -467,9 +464,8 @@ class ExtensionConverter(BaseConverter):
                 self.log_info("Использование ibcmd для выгрузки расширения...")
                 self.report_progress("Выгрузка расширения", 30)
                 
-                # Для ibcmd нужен путь к директории ИБ
-                if self.src_path.startswith('/F'):
-                    db_path = Path(self.src_path[2:])
+                if not is_server:
+                    db_path = Path(base or self.src_path)
                 else:
                     db_path = Path(self.src_path)
                 

@@ -133,44 +133,29 @@ class MyTool(ToolWrapper):
 Обёртка для работы с 1cv8.exe (designer):
 
 ```python
+from pathlib import Path
+
+from converters.base.converter import Logger
 from converters.base.tools import V8ToolWrapper
 
-tool = V8ToolWrapper(
-    tool_path='C:/Program Files/1cv8/8.3.27.1989/bin/1cv8.exe',
-    version='8.3.27.1989'
-)
+env_vars = {
+    'V8_VERSION': '8.3.27.1989',
+    'V8_TOOL': r'C:/Program Files/1cv8/8.3.27.1989/bin/1cv8.exe',
+    'V8_IB_USER': '',
+    'V8_IB_PWD': ''
+}
 
-# Создание информационной базы
-exit_code = tool.create_infobase(
-    ib_path='/FC:/InfoBases/MyBase',
-    config_path='C:/Configs/Configuration.xml'
-)
+logger = Logger()
+tool = V8ToolWrapper(env_vars, logger)
 
-# Загрузка конфигурации
-exit_code = tool.load_config(
-    ib_path='/FC:/InfoBases/MyBase',
-    config_path='C:/Configs/Configuration.xml'
-)
+# Примеры операций
+log_file = Path('v8_designer.log')
+ib_connection = r'File=C:/temp/tmp_db;'
+xml_path = Path('C:/temp/tmp_xml')
 
-# Выгрузка конфигурации в CF
-exit_code = tool.dump_cf(
-    ib_path='/FC:/InfoBases/MyBase',
-    output_path='C:/Output/config.cf'
-)
-
-# Выгрузка расширения в CFE
-exit_code = tool.dump_cfe(
-    ib_path='/FC:/InfoBases/MyBase',
-    extension_name='МоеРасширение',
-    output_path='C:/Output/extension.cfe'
-)
-
-# Выгрузка обработки/отчета в EPF/ERF
-exit_code = tool.dump_epf(
-    ib_path='/FC:/InfoBases/MyBase',
-    object_name='МояОбработка',
-    output_path='C:/Output/processor.epf'
-)
+exit_code = tool.create_infobase(ib_connection, log_file)
+exit_code = tool.load_config_from_files(ib_connection, xml_path, log_file)
+exit_code = tool.dump_config_to_files(ib_connection, Path('C:/Output/XML'), log_file)
 ```
 
 ### IbcmdToolWrapper
@@ -178,28 +163,24 @@ exit_code = tool.dump_epf(
 Обёртка для работы с ibcmd.exe:
 
 ```python
+from pathlib import Path
+
+from converters.base.converter import Logger
 from converters.base.tools import IbcmdToolWrapper
 
-tool = IbcmdToolWrapper(
-    tool_path='C:/Program Files/1cv8/common/ibcmd.exe'
-)
+env_vars = {
+    'V8_VERSION': '8.3.27.1989',
+    'IBCMD_TOOL': r'C:/Program Files/1cv8/8.3.27.1989/bin/ibcmd.exe',
+    'IBCMD_DATA': r'C:/temp/ibcmd_data',
+    'V8_TEMP': r'C:/temp'
+}
 
-# Создание информационной базы
-exit_code = tool.create_infobase(
-    ib_path='C:/InfoBases/MyBase',
-    config_path='C:/Configs/config.cf'
-)
+logger = Logger()
+tool = IbcmdToolWrapper(env_vars, logger)
 
-# Загрузка конфигурации
-exit_code = tool.load_config(
-    ib_path='C:/InfoBases/MyBase',
-    config_path='C:/Configs/config.cf'
-)
-
-# Выгрузка конфигурации
-exit_code = tool.dump_cf(
-    ib_path='C:/InfoBases/MyBase',
-    output_path='C:/Output/config.cf'
+exit_code = tool.create_infobase_with_config(
+    db_path=Path('C:/temp/tmp_db'),
+    xml_path=Path('C:/temp/tmp_xml')
 )
 ```
 
@@ -208,25 +189,24 @@ exit_code = tool.dump_cf(
 Обёртка для работы с 1cedtcli/ring:
 
 ```python
+from pathlib import Path
+
+from converters.base.converter import Logger
 from converters.base.tools import EdtToolWrapper
 
-tool = EdtToolWrapper(
-    ring_path='C:/EDT/ring.bat',
-    edt_path='C:/EDT/1cedtcli.exe',
-    version='2025.1.5'
-)
+env_vars = {
+    'EDTCLI_TOOL': r'C:/Program Files/1C/1CE/components/1c-edt-2025.1.5/1cedtcli.exe',
+    'RING_TOOL': r'C:/Program Files/1C/1CE/components/1c-enterprise-ring-*/ring.bat',
+    'V8_EDT_VERSION': '2025.1.5'
+}
 
-# Экспорт EDT проекта в XML
+logger = Logger()
+tool = EdtToolWrapper(env_vars, logger)
+
 exit_code = tool.export_to_xml(
-    project_path='C:/Projects/MyProject',
-    output_path='C:/Output/XML',
-    workspace_path='C:/Workspaces/temp_ws'
-)
-
-# Валидация EDT проекта
-exit_code = tool.validate_project(
-    project_path='C:/Projects/MyProject',
-    workspace_path='C:/Workspaces/temp_ws'
+    edt_project=Path('C:/Projects/MyProject'),
+    xml_output=Path('C:/Output/XML'),
+    workspace=Path('C:/Workspaces/temp_ws')
 )
 ```
 
