@@ -759,13 +759,19 @@ class IbcmdToolWrapper(ToolWrapper):
         # Реализация будет добавлена позже
         raise NotImplementedError("Метод execute будет реализован в следующих задачах")
     
-    def create_infobase_with_config(self, db_path: Path, xml_path: Path) -> int:
+    def create_infobase_with_config(
+        self,
+        db_path: Path,
+        xml_path: Optional[Path] = None,
+        cf_file: Optional[Path] = None
+    ) -> int:
         """
-        Создает ИБ и загружает конфигурацию из XML.
+        Создает ИБ и загружает конфигурацию из XML или CF.
         
         Args:
             db_path: Путь к создаваемой ИБ
             xml_path: Путь к XML файлам конфигурации
+            cf_file: Путь к CF файлу конфигурации
             
         Returns:
             int: Код возврата (0 - успех)
@@ -776,21 +782,34 @@ class IbcmdToolWrapper(ToolWrapper):
         """
         if not self.is_available():
             raise ToolNotFoundError("ibcmd.exe не найден в системе")
-        
-        self.logger.info(f"Создание ИБ с конфигурацией из XML...")
+
+        if (xml_path is None and cf_file is None) or (xml_path is not None and cf_file is not None):
+            raise ValueError("Нужно указать ровно один источник: xml_path или cf_file")
+
+        if cf_file is not None:
+            self.logger.info(f"Создание ИБ с конфигурацией из CF: {cf_file}...")
+        else:
+            self.logger.info(f"Создание ИБ с конфигурацией из XML...")
         
         # Получаем путь к данным ibcmd
         ibcmd_data = self.env_vars.get('IBCMD_DATA', str(Path(self.env_vars.get('V8_TEMP', 'temp')) / 'ibcmd_data'))
         
-        # Команда: ibcmd infobase create --data=<data> --db-path=<path> --create-database --import=<xml>
+        # Команда:
+        # - XML: ibcmd infobase create --data=<data> --db-path=<path> --create-database --import=<xml>
+        # - CF:  ibcmd infobase create --data=<data> --db-path=<path> --create-database --load=<cf>
         cmd = [
             str(self.tool_path),
             'infobase', 'create',
             f'--data={ibcmd_data}',
             f'--db-path={db_path}',
             '--create-database',
-            f'--import={xml_path}'
         ]
+
+        if cf_file is not None:
+            cmd.append(f'--load={cf_file}')
+        else:
+            assert xml_path is not None
+            cmd.append(f'--import={xml_path}')
         
         # Выводим команду в режиме отладки
 

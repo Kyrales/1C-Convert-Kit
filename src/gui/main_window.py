@@ -264,7 +264,7 @@ class CyberpunkGUI:
         if not selected_items:
             return "Подготовлено к запуску: 0 проектов"
         selected_projects = ProjectScanner.flatten_projects(selected_items, self.project_tree)
-        return f"Подготовлено к запуску: {len(selected_projects)} проектов"
+        return f"Подготовлено к запуску: {len(selected_projects)} проекта(ов)"
 
     def _get_current_path_label(self) -> str:
         if self.current_group_path is None:
