@@ -268,6 +268,94 @@ class ProjectEditorDialog:
     def _sanitize_filename(self, name: str) -> str:
         """Заменяет пробелы на подчеркивания в имени файла"""
         return name.replace(' ', '_')
+
+    def _get_focused_widget(self):
+        """Возвращает активный Tk-виджет поля ввода, если он доступен."""
+        if not self.window:
+            return None
+        try:
+            focused_element = self.window.find_element_with_focus()  # type: ignore[attr-defined]
+        except Exception:
+            return None
+        if focused_element and hasattr(focused_element, 'Widget'):  # type: ignore[attr-defined]
+            return focused_element.Widget  # type: ignore[attr-defined]
+        return None
+
+    def _invoke_widget_action(self, sequence: str) -> bool:
+        """Передает действие нативному Tk-виджету для стандартной работы буфера обмена."""
+        widget = self._get_focused_widget()
+        if widget is None:
+            return False
+        try:
+            _ = widget.focus_set()
+            _ = widget.event_generate(sequence)
+            return True
+        except Exception:
+            return False
+
+    def _select_all_in_focused_widget(self) -> bool:
+        """Выделяет весь текст в активном поле стандартным для Tk способом."""
+        widget = self._get_focused_widget()
+        if widget is None:
+            return False
+        try:
+            _ = widget.focus_set()
+            if hasattr(widget, 'select_range'):
+                _ = widget.select_range(0, 'end')
+                if hasattr(widget, 'icursor'):
+                    _ = widget.icursor('end')
+            else:
+                _ = widget.event_generate('<<SelectAll>>')
+            return True
+        except Exception:
+            return False
+
+    def _handle_select_all_event(self, event) -> str:
+        """Обработчик Ctrl+A для текстовых полей."""
+        try:
+            widget = getattr(event, 'widget', None)
+            if widget is not None:
+                _ = widget.focus_set()
+                if hasattr(widget, 'select_range'):
+                    _ = widget.select_range(0, 'end')
+                    if hasattr(widget, 'icursor'):
+                        _ = widget.icursor('end')
+                else:
+                    _ = widget.event_generate('<<SelectAll>>')
+        except Exception:
+            pass
+        return 'break'
+
+    def _handle_widget_shortcut(self, event, sequence: str) -> str:
+        """Обработчик стандартных горячих клавиш буфера обмена для текстовых полей."""
+        try:
+            widget = getattr(event, 'widget', None)
+            if widget is not None:
+                _ = widget.focus_set()
+                _ = widget.event_generate(sequence)
+        except Exception:
+            pass
+        return 'break'
+
+    def _handle_control_keypress(self, event):
+        """
+        Обрабатывает Ctrl+буква через keycode, чтобы горячие клавиши
+        работали и в неанглийских раскладках Windows.
+        """
+        keycode = getattr(event, 'keycode', None)
+        shortcuts = {
+            67: '<<Copy>>',      # C / С
+            86: '<<Paste>>',     # V / М
+            88: '<<Cut>>',       # X / Ч
+            90: '<<Undo>>',      # Z / Я
+            65: '<<SelectAll>>', # A / Ф
+        }
+        sequence = shortcuts.get(keycode)
+        if not sequence:
+            return None
+        if sequence == '<<SelectAll>>':
+            return self._handle_select_all_event(event)
+        return self._handle_widget_shortcut(event, sequence)
     
     def _create_layout(
         self,
@@ -625,6 +713,7 @@ class ProjectEditorDialog:
                     try:
                         # Включаем undo для Entry виджетов
                         _ = element.Widget.configure(undo=True, maxundo=-1)  # type: ignore[attr-defined]
+                        _ = element.Widget.bind('<Control-KeyPress>', self._handle_control_keypress)  # type: ignore[attr-defined]
                     except:
                         pass
         
@@ -848,66 +937,25 @@ class ProjectEditorDialog:
             
             # Обработка контекстного меню (правый клик)
             elif event == 'Копировать':
-                # Находим активный элемент
-                focused_element = self.window.find_element_with_focus()  # type: ignore[attr-defined]
-                if focused_element and hasattr(focused_element, 'Widget'):  # type: ignore[attr-defined]
-                    try:
-                        # Получаем выделенный текст
-                        selected_text = focused_element.Widget.selection_get()  # type: ignore[attr-defined]
-                        if selected_text:
-                            _ = self.window.TKroot.clipboard_clear()  # type: ignore[attr-defined]
-                            _ = self.window.TKroot.clipboard_append(selected_text)  # type: ignore[attr-defined]
-                    except:
-                        pass
+                _ = self._invoke_widget_action('<<Copy>>')
             
             elif event == 'Вставить':
-                # Находим активный элемент
-                focused_element = self.window.find_element_with_focus()  # type: ignore[attr-defined]
-                if focused_element and hasattr(focused_element, 'Widget'):  # type: ignore[attr-defined]
-                    try:
-                        # Получаем текст из буфера обмена
-                        clipboard_text = self.window.TKroot.clipboard_get()  # type: ignore[attr-defined]
-                        if clipboard_text:
-                            # Вставляем в позицию курсора
-                            focused_element.Widget.insert('insert', clipboard_text)  # type: ignore[attr-defined]
-                    except:
-                        pass
+                _ = self._invoke_widget_action('<<Paste>>')
             
             elif event == 'Вырезать':
-                # Находим активный элемент
-                focused_element = self.window.find_element_with_focus()  # type: ignore[attr-defined]
-                if focused_element and hasattr(focused_element, 'Widget'):  # type: ignore[attr-defined]
-                    try:
-                        # Получаем выделенный текст
-                        selected_text = focused_element.Widget.selection_get()  # type: ignore[attr-defined]
-                        if selected_text:
-                            _ = self.window.TKroot.clipboard_clear()  # type: ignore[attr-defined]
-                            _ = self.window.TKroot.clipboard_append(selected_text)  # type: ignore[attr-defined]
-                            # Удаляем выделенный текст
-                            _ = focused_element.Widget.delete('sel.first', 'sel.last')  # type: ignore[attr-defined]
-                    except:
-                        pass
+                _ = self._invoke_widget_action('<<Cut>>')
             
             elif event == 'Выделить все':
-                # Находим активный элемент
-                focused_element = self.window.find_element_with_focus()  # type: ignore[attr-defined]
-                if focused_element and hasattr(focused_element, 'Widget'):  # type: ignore[attr-defined]
-                    try:
-                        # Выделяем весь текст
-                        focused_element.Widget.select_range(0, 'end')  # type: ignore[attr-defined]
-                        focused_element.Widget.icursor('end')  # type: ignore[attr-defined]
-                    except:
-                        pass
+                _ = self._select_all_in_focused_widget()
             
             elif event == 'Отменить':
-                # Находим активный элемент
-                focused_element = self.window.find_element_with_focus()  # type: ignore[attr-defined]
-                if focused_element and hasattr(focused_element, 'Widget'):  # type: ignore[attr-defined]
-                    try:
-                        # Отменяем последнее действие
-                        focused_element.Widget.edit_undo()  # type: ignore[attr-defined]
-                    except:
-                        pass
+                if not self._invoke_widget_action('<<Undo>>'):
+                    widget = self._get_focused_widget()
+                    if widget is not None:
+                        try:
+                            _ = widget.edit_undo()
+                        except Exception:
+                            pass
             
             # Сохранение
             elif event == '-SAVE-':
