@@ -751,17 +751,7 @@ class ConfigurationConverter(BaseConverter):
                 
                 self.start_stage("Этап 2/2: Импорт конфигурации в EDT проект...")
                 self.report_progress("Импорт XML -> EDT", 70)
-                dst_root = Path(self.dst_path)
-                self._ensure_dir(dst_root)
-                if ib_dir is not None:
-                    project_name = ib_dir.name
-                else:
-                    try:
-                        ref = self.src_path[2:].split('\\', 1)[1]
-                        project_name = ref
-                    except Exception:
-                        project_name = 'server_ib_project'
-                output_dir = dst_root / project_name
+                output_dir = Path(self.dst_path)
                 edt_workspace = self.temp_dir / 'edt_ws'
                 self._ensure_dir(edt_workspace)
                 result = self.edt_tool.import_configuration_files_to_edt_project(
@@ -960,7 +950,8 @@ class ConfigurationConverter(BaseConverter):
                 self.start_stage("Этап 3/3: Выгрузка конфигурации в XML...")
                 self.report_progress("Выгрузка в XML", 70)
                 
-                # Определяем имя выходной директории
+                # Для XML сохраняем совместимость: V8_DST_PATH трактуется как корневой каталог,
+                # внутри которого создается папка с именем исходного CF.
                 cf_name = Path(self.src_path).stem
                 output_dir = Path(self.dst_path) / cf_name
                 self._maybe_clean_dir(output_dir, 'V8_CONF_CLEAN_DST', 'V8_CONF_CLEAN_DST')
@@ -994,9 +985,7 @@ class ConfigurationConverter(BaseConverter):
                 self.start_stage("Этап 3/3: Выгрузка конфигурации в EDT...")
                 self.report_progress("Выгрузка в EDT", 70)
                 
-                # Определяем имя выходной директории
-                cf_name = Path(self.src_path).stem
-                output_dir = Path(self.dst_path) / cf_name
+                output_dir = Path(self.dst_path)
                 self._maybe_clean_dir(output_dir, 'V8_CONF_CLEAN_DST', 'V8_CONF_CLEAN_DST')
                 output_dir.mkdir(parents=True, exist_ok=True)
                 
