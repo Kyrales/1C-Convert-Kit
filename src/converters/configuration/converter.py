@@ -751,17 +751,7 @@ class ConfigurationConverter(BaseConverter):
                 
                 self.start_stage("Этап 2/2: Импорт конфигурации в EDT проект...")
                 self.report_progress("Импорт XML -> EDT", 70)
-                dst_root = Path(self.dst_path)
-                self._ensure_dir(dst_root)
-                if ib_dir is not None:
-                    project_name = ib_dir.name
-                else:
-                    try:
-                        ref = self.src_path[2:].split('\\', 1)[1]
-                        project_name = ref
-                    except Exception:
-                        project_name = 'server_ib_project'
-                output_dir = dst_root / project_name
+                output_dir = Path(self.dst_path)
                 edt_workspace = self.temp_dir / 'edt_ws'
                 self._ensure_dir(edt_workspace)
                 result = self.edt_tool.import_configuration_files_to_edt_project(
@@ -850,12 +840,23 @@ class ConfigurationConverter(BaseConverter):
             )
         
         # Проверяем доступность инструментов
-        if not self.v8_tool.is_available():
+        use_ibcmd_for_intermediate_steps = (
+            target_format in ["XML", "EDT"] and
+            self.convert_tool == 'ibcmd'
+        )
+
+        if use_ibcmd_for_intermediate_steps:
+            if not self.ibcmd_tool.is_available():
+                raise ToolNotFoundError(
+                    "ibcmd.exe не найден. " +
+                    "Установите платформу 1С или укажите путь в переменной IBCMD_TOOL"
+                )
+        elif not self.v8_tool.is_available():
             raise ToolNotFoundError(
                 "1cv8.exe не найден. " +
                 "Установите платформу 1С или укажите путь в переменной V8_TOOL"
             )
-        
+
         if target_format == "EDT" and not self.edt_tool.is_available():
             raise ToolNotFoundError(
                 "EDT инструмент (1cedtcli/ring) не найден. " +
@@ -912,39 +913,53 @@ class ConfigurationConverter(BaseConverter):
                 return 0
             
             # Этап 1: Создаем временную ИБ
-            self.start_stage("Этап 1/3: Создание временной ИБ...")
-            self.report_progress("Создание временной ИБ", 10)
+            if self.convert_tool != 'ibcmd':
+                self.start_stage("Этап 1/3: Создание временной ИБ...")
+                self.report_progress("Создание временной ИБ", 10)
             
             temp_db = self.temp_dir / 'tmp_db'
             _ = temp_db.mkdir(exist_ok=True)
             
-            ib_path_str = str(temp_db).replace('\\', '/')
-            ib_connection_string = f'File={ib_path_str};'
-            log_file = self.temp_dir / 'create_ib.log'
+            if self.convert_tool == 'ibcmd':
+                self._ensure_dir(temp_db)
+            else:
+                ib_path_str = str(temp_db).replace('\\', '/')
+                ib_connection_string = f'File={ib_path_str};'
+                log_file = self.temp_dir / 'create_ib.log'
+                
+                result = self.v8_tool.create_infobase(ib_connection_string, log_file)
+                
+                if result != 0:
+                    raise ToolExecutionError(
+                        "Ошибка при создании временной ИБ",
+                        temp_dir=self.temp_dir
+                    )
             
-            result = self.v8_tool.create_infobase(ib_connection_string, log_file)
-            
-            if result != 0:
-                raise ToolExecutionError(
-                    "Ошибка при создании временной ИБ",
-                    temp_dir=self.temp_dir
-                )
-            
-            self.end_stage("Временная ИБ создана")
-            self.report_progress("Временная ИБ создана", 30)
+            if self.convert_tool != 'ibcmd':
+                self.end_stage("Временная ИБ создана")
+                self.report_progress("Временная ИБ создана", 30)
             
             # Этап 2: Загружаем конфигурацию из CF в ИБ
-            self.start_stage("Этап 2/3: Загрузка конфигурации из CF файла...")
-            self.report_progress("Загрузка конфигурации", 40)
+            if self.convert_tool == 'ibcmd':
+                self.start_stage("Этап 1/2: Создание временной ИБ с загрузкой конфигурации из CF файла...")
+                self.report_progress("Создание временной ИБ и загрузка конфигурации", 20)
+            else:
+                self.start_stage("Этап 2/3: Загрузка конфигурации из CF файла...")
+                self.report_progress("Загрузка конфигурации", 40)
             
             cf_file = Path(self.src_path)
-            load_log_file = self.temp_dir / 'load_cf.log'
-            
-            result = self.v8_tool.load_config_from_cf(
-                ib_connection=str(temp_db),
-                cf_file=cf_file,
-                log_file=load_log_file
-            )
+            if self.convert_tool == 'ibcmd':
+                result = self.ibcmd_tool.create_infobase_with_config(
+                    db_path=temp_db,
+                    cf_file=cf_file
+                )
+            else:
+                load_log_file = self.temp_dir / 'load_cf.log'
+                result = self.v8_tool.load_config_from_cf(
+                    ib_connection=str(temp_db),
+                    cf_file=cf_file,
+                    log_file=load_log_file
+                )
             
             if result != 0:
                 raise ToolExecutionError(
@@ -957,10 +972,14 @@ class ConfigurationConverter(BaseConverter):
             
             # Этап 3: Выгружаем в целевой формат
             if target_format == "XML":
-                self.start_stage("Этап 3/3: Выгрузка конфигурации в XML...")
+                if self.convert_tool == 'ibcmd':
+                    self.start_stage("Этап 2/2: Выгрузка конфигурации в XML...")
+                else:
+                    self.start_stage("Этап 3/3: Выгрузка конфигурации в XML...")
                 self.report_progress("Выгрузка в XML", 70)
                 
-                # Определяем имя выходной директории
+                # Для XML сохраняем совместимость: V8_DST_PATH трактуется как корневой каталог,
+                # внутри которого создается папка с именем исходного CF.
                 cf_name = Path(self.src_path).stem
                 output_dir = Path(self.dst_path) / cf_name
                 self._maybe_clean_dir(output_dir, 'V8_CONF_CLEAN_DST', 'V8_CONF_CLEAN_DST')
@@ -968,11 +987,17 @@ class ConfigurationConverter(BaseConverter):
                 
                 dump_log_file = self.temp_dir / 'dump_xml.log'
                 
-                result = self.v8_tool.dump_config_to_files(
-                    ib_connection=str(temp_db),
-                    output_dir=output_dir,
-                    log_file=dump_log_file
-                )
+                if self.convert_tool == 'ibcmd':
+                    result = self.ibcmd_tool.export_config_to_files(
+                        db_path=temp_db,
+                        output_dir=output_dir
+                    )
+                else:
+                    result = self.v8_tool.dump_config_to_files(
+                        ib_connection=str(temp_db),
+                        output_dir=output_dir,
+                        log_file=dump_log_file
+                    )
                 
                 if result != 0:
                     raise ToolExecutionError(
@@ -991,12 +1016,13 @@ class ConfigurationConverter(BaseConverter):
                 self.end_stage(f"Конфигурация успешно выгружена в XML: {output_dir}")
                 
             else:  # EDT
-                self.start_stage("Этап 3/3: Выгрузка конфигурации в EDT...")
+                if self.convert_tool == 'ibcmd':
+                    self.start_stage("Этап 2/2: Выгрузка конфигурации в EDT...")
+                else:
+                    self.start_stage("Этап 3/3: Выгрузка конфигурации в EDT...")
                 self.report_progress("Выгрузка в EDT", 70)
                 
-                # Определяем имя выходной директории
-                cf_name = Path(self.src_path).stem
-                output_dir = Path(self.dst_path) / cf_name
+                output_dir = Path(self.dst_path)
                 self._maybe_clean_dir(output_dir, 'V8_CONF_CLEAN_DST', 'V8_CONF_CLEAN_DST')
                 output_dir.mkdir(parents=True, exist_ok=True)
                 
@@ -1005,11 +1031,17 @@ class ConfigurationConverter(BaseConverter):
                 _ = temp_xml.mkdir(exist_ok=True)
                 
                 dump_log_file = self.temp_dir / 'dump_xml.log'
-                result = self.v8_tool.dump_config_to_files(
-                    ib_connection=str(temp_db),
-                    output_dir=temp_xml,
-                    log_file=dump_log_file
-                )
+                if self.convert_tool == 'ibcmd':
+                    result = self.ibcmd_tool.export_config_to_files(
+                        db_path=temp_db,
+                        output_dir=temp_xml
+                    )
+                else:
+                    result = self.v8_tool.dump_config_to_files(
+                        ib_connection=str(temp_db),
+                        output_dir=temp_xml,
+                        log_file=dump_log_file
+                    )
                 
                 if result != 0:
                     raise ToolExecutionError(

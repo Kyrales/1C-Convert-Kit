@@ -1133,15 +1133,15 @@ class TestConversionIntegration:
             env_name='conf2ib_for_edt.env',
             error_message="Создание ИБ для EDT завершилось с ошибкой"
         )
-        dst_edt_root = self.output_dir / 'ib_edt'
+        dst_edt_project = self.output_dir / 'ib_edt'
         tmp_env2 = self.output_dir / 'ib2edt.env'
         with open(tmp_env2, 'w', encoding='utf-8') as f:
             f.write('ScriptName=conf2edt\n')
             f.write(f'V8_SRC_PATH="/F{str(ib_dir)}"\n')
-            f.write(f'V8_DST_PATH="{str(dst_edt_root)}"\n')
+            f.write(f'V8_DST_PATH="{str(dst_edt_project)}"\n')
         exit_code = run_conversion([str(base_env), str(tmp_env2)])
         assert exit_code == 0, "Конвертация IB -> EDT завершилась с ошибкой"
-        project_dir = dst_edt_root / ib_dir.name
+        project_dir = dst_edt_project
         assert project_dir.exists(), f"EDT проект не создан: {project_dir}"
         assert (project_dir / '.project').exists(), ".project не найден в EDT проекте"
         assert (project_dir / 'DT-INF').exists(), "DT-INF не найден в EDT проекте"
@@ -1211,17 +1211,17 @@ class TestConversionIntegration:
         - В проекте есть .project, DT-INF, src
         """
         base_env = project_root / 'tests' / 'fixtures' / 'base_test.env'
-        dst_edt_root = self.output_dir / 'server_ib_edt'
+        dst_edt_project = self.output_dir / 'server_ib_edt'
         tmp_env = self.output_dir / 'server_ib2edt.env'
         with open(tmp_env, 'w', encoding='utf-8') as f:
             f.write('ScriptName=conf2edt\n')
             f.write('V8_IB_USER="Администратор"\n')
             f.write('V8_IB_PWD="123456"\n')
             f.write('V8_SRC_PATH="/Skantor\\test_for_1c_convert_kit"\n')
-            f.write(f'V8_DST_PATH="{str(dst_edt_root)}"\n')
+            f.write(f'V8_DST_PATH="{str(dst_edt_project)}"\n')
         exit_code = run_conversion([str(base_env), str(tmp_env)])
         assert exit_code == 0, "Выгрузка EDT из серверной ИБ завершилась с ошибкой"
-        project_dir = dst_edt_root / 'test_for_1c_convert_kit'
+        project_dir = dst_edt_project
         assert project_dir.exists(), f"EDT проект не создан: {project_dir}"
         assert (project_dir / '.project').exists(), ".project не найден в EDT проекте"
         assert (project_dir / 'DT-INF').exists(), "DT-INF не найден в EDT проекте"
@@ -1485,7 +1485,7 @@ class TestConversionIntegration:
         base_vars = load_env_file(str(base_env), silent=True)
         if not base_vars or 'IBCMD_TOOL' not in base_vars or not Path(base_vars['IBCMD_TOOL']).exists():
             pytest.skip("IBCMD_TOOL не настроен, тест пропущен")
-        dst_edt_root = self.output_dir / 'server_ib_edt_ibcmd'
+        dst_edt_project = self.output_dir / 'server_ib_edt_ibcmd'
         tmp_env = self.output_dir / 'server_ib2edt_ibcmd.env'
         with open(tmp_env, 'w', encoding='utf-8') as f:
             f.write('ScriptName=conf2edt\n')
@@ -1493,10 +1493,10 @@ class TestConversionIntegration:
             f.write('V8_IB_USER="Администратор"\n')
             f.write('V8_IB_PWD="123456"\n')
             f.write('V8_SRC_PATH="/Skantor\\test_for_1c_convert_kit"\n')
-            f.write(f'V8_DST_PATH="{str(dst_edt_root)}"\n')
+            f.write(f'V8_DST_PATH="{str(dst_edt_project)}"\n')
         exit_code = run_conversion([str(base_env), str(tmp_env)])
         assert exit_code == 0, "Выгрузка EDT из серверной ИБ через IBCMD завершилась с ошибкой"
-        project_dir = dst_edt_root / 'test_for_1c_convert_kit'
+        project_dir = dst_edt_project
         assert project_dir.exists(), f"EDT проект не создан: {project_dir}"
         assert (project_dir / '.project').exists(), ".project не найден в EDT проекте"
         assert (project_dir / 'DT-INF').exists(), "DT-INF не найден в EDT проекте"
