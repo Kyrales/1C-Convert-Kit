@@ -25,7 +25,8 @@ class ProjectEditorDialog:
         params_depend: "dict[str, dict[str, list[str]]] | None" = None,
         mode: str = 'add', 
         project_data: "dict[str, str] | ProjectDict | None" = None,
-        existing_projects: "list[str] | None" = None
+        existing_projects: "list[str] | None" = None,
+        current_group_path: str | None = None,
     ) -> None:
         """
         Args:
@@ -39,6 +40,7 @@ class ProjectEditorDialog:
         self.mode = mode
         self.project_data = project_data or {}
         self.existing_projects = existing_projects or []
+        self.current_group_path = current_group_path or '/projects'
         self.result: "dict[str, str | dict[str, str]] | None" = None
         self.window: object = None  # type: ignore[assignment]
         
@@ -340,6 +342,11 @@ class ProjectEditorDialog:
         
         # Обязательные поля
         layout.append([
+            sg.Text('Текущая папка:', size=(20, 1), text_color=COLORS['primary'], background_color=COLORS['bg']),
+            sg.Text(self.current_group_path, size=(60, 1), text_color=COLORS['text'], background_color=COLORS['bg'])
+        ])
+
+        layout.append([
             sg.Text('Наименование:', size=(20, 1), text_color=COLORS['text'], background_color=COLORS['bg']),
             sg.Input(current_name, key='-NAME-', size=(60, 1), 
                     background_color=COLORS['bg_secondary'], text_color=COLORS['text'],
@@ -633,6 +640,17 @@ class ProjectEditorDialog:
                     value_key = f'-VAL_{param}-'
                     if value_key in self.window.AllKeysDict:  # type: ignore[attr-defined, union-attr]
                         _ = self.window[value_key].update(value=value)  # type: ignore[index, attr-defined, union-attr, call-overload]
+
+        # Явно ставим фокус в поле наименования, чтобы курсор сразу был готов к вводу
+        try:
+            name_element = self.window['-NAME-']  # type: ignore[index, union-attr]
+            if hasattr(name_element, 'set_focus'):
+                _ = name_element.set_focus()  # type: ignore[attr-defined]
+            if hasattr(name_element, 'Widget'):
+                _ = name_element.Widget.focus_set()  # type: ignore[attr-defined]
+                _ = name_element.Widget.icursor('end')  # type: ignore[attr-defined]
+        except Exception:
+            pass
         
         while True:
             event, values = self.window.read()  # type: ignore[attr-defined, misc, union-attr]
