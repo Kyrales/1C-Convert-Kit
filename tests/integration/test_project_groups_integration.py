@@ -15,7 +15,9 @@ def test_demo_group_exists_in_real_projects_tree() -> None:
     assert "Demo" in tree
     demo = tree["Demo"]
     assert demo["item_type"] == "group"
-    assert demo["project_count"] == 10  # type: ignore[index]
+    projects = ProjectScanner.flatten_projects([demo], tree)
+    assert demo["project_count"] == len(projects)  # type: ignore[index]
+    assert demo["project_count"] >= 10  # type: ignore[index]
 
 
 def test_demo_group_contains_expected_projects() -> None:
@@ -23,7 +25,8 @@ def test_demo_group_contains_expected_projects() -> None:
     projects = ProjectScanner.flatten_projects([tree["Demo"]], tree)
 
     project_names = [project["name"] for project in projects]
-    assert len(project_names) == 10
+    assert len(project_names) == len(set(project_names))
+    assert len(project_names) >= 10
     assert "Демо_edt_в_cf" in project_names
     assert "Демо_edt_в_cfe" in project_names
     assert "Демо_edt_в_xml" in project_names

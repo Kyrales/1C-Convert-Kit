@@ -75,7 +75,13 @@ class TestDebugCommands:
         # Получаем список для отслеживания созданных файлов
         created_items = setup_and_teardown
         # Arrange: подготовка путей
-        demo_project_env = project_root / 'projects' / 'Демо_edt_в_cf' / 'Демо_edt_в_cf_conf2cf.env'
+        demo_project_env = (
+            project_root
+            / 'projects'
+            / 'Demo'
+            / 'Демо_edt_в_cf'
+            / 'Демо_edt_в_cf_conf2cf.env'
+        )
         
         # Проверяем наличие проекта
         assert demo_project_env.exists(), f"Проект Демо_edt_в_cf не найден: {demo_project_env}"
