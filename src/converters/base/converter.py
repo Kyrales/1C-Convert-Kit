@@ -141,6 +141,7 @@ class SourceType(Enum):
     SERVER_IB = "server_ib"  # Серверная информационная база
     CF_FILE = "cf"           # Файл конфигурации .cf
     CFE_FILE = "cfe"         # Файл расширения .cfe
+    DT_FILE = "dt"           # Выгрузка информационной базы .dt
     UNKNOWN = "unknown"
 
 
@@ -210,6 +211,10 @@ class SourceDetector:
         # Проверка на .cfe файл
         if path_obj.is_file() and path_obj.suffix.lower() == '.cfe':
             return SourceType.CFE_FILE
+
+        # Проверка на файл выгрузки информационной базы
+        if path_obj.is_file() and path_obj.suffix.lower() == '.dt':
+            return SourceType.DT_FILE
         
         return SourceType.UNKNOWN
 
@@ -600,8 +605,11 @@ class BaseConverter(ABC):
                 for line in e.tool_output.split('\n'):
                     if line.strip():
                         self.logger.error(f"  {line}")
-            if e.temp_dir:
-                self.logger.warning(f"Временные файлы сохранены для отладки: {e.temp_dir}")
+            error_temp_dir = e.temp_dir or self.temp_dir
+            if error_temp_dir:
+                self.logger.warning(
+                    f"Временные файлы сохранены для отладки: {error_temp_dir}"
+                )
             return 1
             
         except Exception as e:

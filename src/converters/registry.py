@@ -40,6 +40,8 @@ class ConverterRegistry:
         self.register('conf2xml', ConfigurationConverter)
         self.register('conf2edt', ConfigurationConverter)
         self.register('conf2ib', ConfigurationConverter)
+        self.register('dt2ib', ConfigurationConverter)
+        self.register('ib2dt', ConfigurationConverter)
         
         # Регистрируем конвертеры обработок/отчетов
         self.register('dp2epf', DataProcessorConverter)

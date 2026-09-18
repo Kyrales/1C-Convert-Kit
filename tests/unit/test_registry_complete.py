@@ -27,7 +27,7 @@ class TestConverterRegistryComplete:
         # Проверяем что все типы конвертации зарегистрированы
         expected_converters = [
             # Конфигурации
-            'conf2cf', 'conf2xml', 'conf2edt', 'conf2ib',
+            'conf2cf', 'conf2xml', 'conf2edt', 'conf2ib', 'dt2ib', 'ib2dt',
             # Обработки/отчеты
             'dp2epf', 'dp2erf', 'dp2xml', 'dp2edt',
             # Расширения
@@ -97,5 +97,5 @@ class TestConverterRegistryComplete:
         registry = ConverterRegistry()
         converters = registry.list_converters()
         
-        # Должно быть 13 типов конвертации
-        assert len(converters) == 13
+        # Должно быть 15 типов конвертации
+        assert len(converters) == 15

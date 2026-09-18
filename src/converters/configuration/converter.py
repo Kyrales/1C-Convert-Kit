@@ -81,6 +81,15 @@ class ConfigurationConverter(BaseConverter):
         """
         # Получаем тип конвертации
         script_name = self.env_vars.get('ScriptName', '').lower()
+
+        if script_name in ['dt2ib', 'ib2dt'] and self.convert_tool not in [
+            'designer',
+            'ibcmd',
+        ]:
+            raise ValidationError(
+                "V8_CONVERT_TOOL для DT-сценариев должен быть designer или ibcmd, "
+                f"получено: {self.convert_tool}"
+            )
         
         dst_path_obj = Path(self.dst_path)
         
@@ -90,9 +99,25 @@ class ConfigurationConverter(BaseConverter):
                     f"V8_DST_PATH должен указывать на файл .cf для {script_name}, " +
                     f"получено: {self.dst_path}"
                 )
-        elif script_name == 'conf2ib':
+        elif script_name in ['conf2ib', 'dt2ib']:
+            if script_name == 'dt2ib' and Path(self.src_path).suffix.lower() != '.dt':
+                raise ValidationError(
+                    f"V8_SRC_PATH должен указывать на файл .dt для dt2ib, получено: {self.src_path}"
+                )
             dst = self.dst_path
-            if dst.startswith('/S'):
+            dst_is_server, dst_server, dst_name = parse_ib_reference(dst)
+            dst_looks_server = (
+                dst.lower().startswith('/s') or
+                'srvr=' in dst.lower() or
+                'ref=' in dst.lower()
+            )
+            if dst_looks_server and not (
+                dst_is_server and dst_server and dst_name
+            ):
+                raise ValidationError(
+                    f"Некорректная серверная ИБ в V8_DST_PATH: {dst}"
+                )
+            if dst_is_server:
                 return
             if dst.startswith('/F'):
                 if not Path(dst[2:]).exists() and Path(dst[2:]).suffix:
@@ -102,7 +127,34 @@ class ConfigurationConverter(BaseConverter):
                 return
             if dst_path_obj.suffix:
                 raise ValidationError(
-                    f"V8_DST_PATH для conf2ib должен указывать на каталог ИБ или строку /F... или /S..., получено: {self.dst_path}"
+                    f"V8_DST_PATH для {script_name} должен указывать на каталог ИБ или строку /F... или /S..., получено: {self.dst_path}"
+                )
+        elif script_name == 'ib2dt':
+            if dst_path_obj.suffix.lower() != '.dt':
+                raise ValidationError(
+                    f"V8_DST_PATH должен указывать на файл .dt для ib2dt, получено: {self.dst_path}"
+                )
+            src_is_server, src_server, src_name = parse_ib_reference(
+                self.src_path
+            )
+            src_looks_server = (
+                self.src_path.lower().startswith('/s') or
+                'srvr=' in self.src_path.lower() or
+                'ref=' in self.src_path.lower()
+            )
+            if src_looks_server and not (
+                src_is_server and src_server and src_name
+            ):
+                raise ValidationError(
+                    "Некорректная серверная ИБ в V8_SRC_PATH: " +
+                    self.src_path
+                )
+            if self.detect_source_type() not in [
+                SourceType.FILE_IB,
+                SourceType.SERVER_IB,
+            ]:
+                raise ValidationError(
+                    f"V8_SRC_PATH должен указывать на информационную базу для ib2dt, получено: {self.src_path}"
                 )
         # Для конвертации в XML или EDT
         elif script_name in ['conf2xml', 'conf2edt']:
@@ -141,11 +193,58 @@ class ConfigurationConverter(BaseConverter):
             return self._convert_from_ib()
         elif source_type == SourceType.CF_FILE:
             return self._convert_from_cf()
+        elif source_type == SourceType.DT_FILE:
+            return self._convert_from_dt()
         else:
             raise ValidationError(
                 f"Неподдерживаемый тип источника: {source_type.value}. " +
-                f"Поддерживаются: EDT, XML, InfoBase, CF"
+                f"Поддерживаются: EDT, XML, InfoBase, CF, DT"
             )
+
+    def _convert_from_dt(self) -> int:
+        """Восстанавливает DT-файл в файловую или серверную ИБ."""
+        if self.env_vars.get('ScriptName', '').lower() != 'dt2ib':
+            raise ValidationError("DT-файл поддерживается только в сценарии dt2ib")
+
+        assert self.temp_dir is not None, "temp_dir должна быть создана перед конвертацией"
+        dt_file = Path(self.src_path)
+        ib_dir = self._get_file_ib_path_from_value(self.dst_path)
+        self.report_progress("Восстановление DT -> IB", 20)
+
+        if self.convert_tool == 'ibcmd':
+            if not self.ibcmd_tool.is_available():
+                raise ToolNotFoundError("ibcmd.exe не найден в системе")
+            if ib_dir is None:
+                self._set_server_ib_env(self.dst_path)
+                db_path = Path('.')
+            else:
+                self._ensure_dir(ib_dir)
+                db_path = ib_dir
+            result = self.ibcmd_tool.restore_infobase(
+                db_path,
+                dt_file,
+                use_server=ib_dir is None
+            )
+        else:
+            if not self.v8_tool.is_available():
+                raise ToolNotFoundError("1cv8.exe не найден в системе")
+            if ib_dir is not None and not (ib_dir / '1cv8.1cd').exists():
+                self._ensure_dir(ib_dir)
+                self._create_file_ib_if_missing(
+                    ib_dir, self.temp_dir / 'create_ib.log'
+                )
+            ib_connection = self.dst_path if ib_dir is None else str(ib_dir)
+            result = self.v8_tool.restore_infobase(
+                ib_connection, dt_file, self.temp_dir / 'restore_ib.log'
+            )
+
+        if result != 0:
+            raise ToolExecutionError(
+                "Ошибка при восстановлении информационной базы из DT",
+                temp_dir=self.temp_dir
+            )
+        self.report_progress("Конвертация завершена", 100)
+        return 0
 
     def _get_file_ib_path_from_value(self, value: str) -> Optional[Path]:
         is_server, _, base = parse_ib_reference(value)
@@ -172,7 +271,6 @@ class ConfigurationConverter(BaseConverter):
             self.env_vars['V8_IB_SERVER'] = server
         if not self.env_vars.get('V8_IB_NAME'):
             self.env_vars['V8_IB_NAME'] = name
-            self.log_info("V8_IB_NAME не задан, использовано значение из пути серверной ИБ")
 
     def _create_file_ib_if_missing(self, ib_dir: Path, log_file: Path) -> None:
         if (ib_dir / '1cv8.1cd').exists():
@@ -650,6 +748,9 @@ class ConfigurationConverter(BaseConverter):
         elif script_name == 'conf2ib':
             self.log_info("Конвертация IB -> IB")
             self.report_progress("Конвертация IB -> IB", 0)
+        elif script_name == 'ib2dt':
+            self.log_info("Конвертация IB -> DT")
+            self.report_progress("Конвертация IB -> DT", 0)
         else:
             self.log_info("Конвертация IB -> CF")
             self.report_progress("Конвертация IB -> CF", 0)
@@ -674,6 +775,29 @@ class ConfigurationConverter(BaseConverter):
             self._set_server_ib_env(self.src_path)
         
         try:
+            if script_name == 'ib2dt':
+                output_file = Path(self.dst_path)
+                output_file.parent.mkdir(parents=True, exist_ok=True)
+                ib_dir = self._get_file_ib_path_from_value(self.src_path)
+                if self.convert_tool == 'ibcmd':
+                    db_path = Path('.') if ib_dir is None else ib_dir
+                    result = self.ibcmd_tool.dump_infobase(
+                        db_path,
+                        output_file,
+                        use_server=ib_dir is None
+                    )
+                else:
+                    ib_connection = self.src_path if ib_dir is None else str(ib_dir)
+                    result = self.v8_tool.dump_infobase(
+                        ib_connection, output_file, self.temp_dir / 'dump_ib.log'
+                    )
+                if result != 0 or not output_file.exists():
+                    raise ToolExecutionError(
+                        "Ошибка при выгрузке информационной базы в DT",
+                        temp_dir=self.temp_dir
+                    )
+                self.report_progress("Конвертация завершена", 100)
+                return 0
             if script_name == 'conf2xml':
                 ib_dir = self._get_file_ib_path_from_value(self.src_path)
                 output_dir = Path(self.dst_path)

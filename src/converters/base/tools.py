@@ -8,6 +8,7 @@ import subprocess
 from abc import ABC, abstractmethod
 from pathlib import Path
 from typing import Dict, Optional, List, Tuple, TYPE_CHECKING
+from uuid import uuid4
 
 if TYPE_CHECKING:
     import subprocess
@@ -124,7 +125,18 @@ class ToolWrapper(ABC):
             cmd: Список аргументов команды
         """
         if self.logger.debug:
-            cmd_str = format_command_for_log(cmd)
+            safe_cmd = []
+            for arg in cmd:
+                arg_lower = str(arg).lower()
+                if arg_lower.startswith('--password='):
+                    safe_cmd.append('--password=***')
+                elif arg_lower.startswith('--db-pwd='):
+                    safe_cmd.append('--db-pwd=***')
+                elif str(arg).startswith('/P'):
+                    safe_cmd.append('/P***')
+                else:
+                    safe_cmd.append(str(arg))
+            cmd_str = format_command_for_log(safe_cmd)
             self.logger.debug_msg(f"Команда: {cmd_str}")
             self.logger.debug_msg("Примечание: Команда отформатирована для копирования в CMD")
     
@@ -386,6 +398,119 @@ class V8ToolWrapper(ToolWrapper):
             
             return result.returncode
             
+        except subprocess.SubprocessError as e:
+            raise ToolExecutionError(f"Ошибка запуска 1cv8.exe: {e}")
+
+    def dump_infobase(
+        self,
+        ib_connection: str,
+        output_file: Path,
+        log_file: Path
+    ) -> int:
+        """Выгружает информационную базу в DT-файл через DESIGNER."""
+        if not self.is_available():
+            raise ToolNotFoundError("1cv8.exe не найден в системе")
+
+        self.logger.info(f"Выгрузка информационной базы в DT: {output_file}...")
+        temp_output = output_file.with_name(
+            f'.{output_file.stem}.{uuid4().hex}.tmp.dt'
+        )
+        cmd = [
+            str(self.tool_path),
+            'DESIGNER',
+            '/IBConnectionString', self._build_ib_connection_string(ib_connection),
+            '/DisableStartupDialogs',
+            '/Out', str(log_file),
+            '/DumpIB', str(temp_output)
+        ]
+        self._append_ib_credentials(cmd)
+        self._log_command(cmd)
+
+        try:
+            if log_file.exists():
+                log_file.unlink()
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding='cp1251',
+                errors='replace'
+            )
+            errors = []
+            if log_file.exists():
+                from .converter import ToolOutputParser
+                errors, _ = ToolOutputParser.parse_designer_log(
+                    log_file, self.logger
+                )
+            if errors:
+                raise ToolExecutionError(
+                    "Ошибка при выгрузке информационной базы в DT",
+                    tool_output='\n'.join(errors)
+                )
+            if result.returncode != 0:
+                raise ToolExecutionError(
+                    "Ошибка при выгрузке информационной базы в DT",
+                    tool_output=result.stderr or result.stdout
+                )
+            if not temp_output.exists():
+                raise ToolExecutionError(f"Выходной файл не создан: {temp_output}")
+            temp_output.replace(output_file)
+            return result.returncode
+        except subprocess.SubprocessError as e:
+            raise ToolExecutionError(f"Ошибка запуска 1cv8.exe: {e}")
+        finally:
+            if temp_output.exists():
+                temp_output.unlink()
+
+    def restore_infobase(
+        self,
+        ib_connection: str,
+        dt_file: Path,
+        log_file: Path
+    ) -> int:
+        """Восстанавливает DT-файл в информационную базу через DESIGNER."""
+        if not self.is_available():
+            raise ToolNotFoundError("1cv8.exe не найден в системе")
+
+        self.logger.info(f"Восстановление информационной базы из DT: {dt_file}...")
+        cmd = [
+            str(self.tool_path),
+            'DESIGNER',
+            '/IBConnectionString', self._build_ib_connection_string(ib_connection),
+            '/DisableStartupDialogs',
+            '/Out', str(log_file),
+            '/RestoreIB', str(dt_file)
+        ]
+        self._append_ib_credentials(cmd)
+        self._log_command(cmd)
+
+        try:
+            if log_file.exists():
+                log_file.unlink()
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding='cp1251',
+                errors='replace'
+            )
+            errors = []
+            if log_file.exists():
+                from .converter import ToolOutputParser
+                errors, _ = ToolOutputParser.parse_designer_log(
+                    log_file, self.logger
+                )
+            if errors:
+                raise ToolExecutionError(
+                    "Ошибка при восстановлении информационной базы из DT",
+                    tool_output='\n'.join(errors)
+                )
+            if result.returncode != 0:
+                raise ToolExecutionError(
+                    "Ошибка при восстановлении информационной базы из DT",
+                    tool_output=result.stderr or result.stdout
+                )
+            return result.returncode
         except subprocess.SubprocessError as e:
             raise ToolExecutionError(f"Ошибка запуска 1cv8.exe: {e}")
     
@@ -835,6 +960,115 @@ class IbcmdToolWrapper(ToolWrapper):
             
             return result.returncode
             
+        except subprocess.SubprocessError as e:
+            raise ToolExecutionError(f"Ошибка запуска ibcmd.exe: {e}")
+
+    def _infobase_connection_args(
+        self,
+        db_path: Path,
+        *,
+        use_server: bool = False
+    ) -> List[str]:
+        """Возвращает параметры подключения ibcmd к файловой или серверной ИБ."""
+        ibcmd_data = self.env_vars.get(
+            'IBCMD_DATA',
+            str(Path(self.env_vars.get('V8_TEMP', 'temp')) / 'ibcmd_data')
+        )
+        args = [f'--data={ibcmd_data}']
+        if use_server:
+            ib_server, ib_name = self._resolve_server_ib()
+            if not ib_server or not ib_name:
+                raise ToolExecutionError(
+                    "Не заданы сервер и имя базы данных для ibcmd"
+                )
+            args.extend([
+                f"--dbms={self.env_vars.get('V8_DB_SRV_DBMS', 'MSSQLServer')}",
+                f'--db-server={ib_server}',
+                f'--db-name={ib_name}',
+                f"--db-user={self.env_vars.get('V8_DB_SRV_USR', '')}",
+                f"--db-pwd={self.env_vars.get('V8_DB_SRV_PWD', '')}",
+            ])
+        else:
+            args.append(f'--db-path={db_path}')
+        args.extend([
+            f"--user={self.env_vars.get('V8_IB_USER', '')}",
+            f"--password={self.env_vars.get('V8_IB_PWD', '')}",
+        ])
+        return args
+
+    def dump_infobase(
+        self,
+        db_path: Path,
+        output_file: Path,
+        *,
+        use_server: bool = False
+    ) -> int:
+        """Выгружает информационную базу в DT-файл через ibcmd."""
+        if not self.is_available():
+            raise ToolNotFoundError("ibcmd.exe не найден в системе")
+
+        self.logger.info(f"Выгрузка информационной базы в DT: {output_file}...")
+        cmd = [str(self.tool_path), 'infobase', 'dump']
+        cmd.extend(
+            self._infobase_connection_args(db_path, use_server=use_server)
+        )
+        cmd.append(str(output_file))
+        self._log_command(cmd)
+
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+                errors='replace'
+            )
+            if result.returncode != 0:
+                raise ToolExecutionError(
+                    "Ошибка при выгрузке информационной базы в DT",
+                    tool_output=result.stderr or result.stdout
+                )
+            if not output_file.exists():
+                raise ToolExecutionError(f"Выходной файл не создан: {output_file}")
+            return result.returncode
+        except subprocess.SubprocessError as e:
+            raise ToolExecutionError(f"Ошибка запуска ibcmd.exe: {e}")
+
+    def restore_infobase(
+        self,
+        db_path: Path,
+        dt_file: Path,
+        *,
+        use_server: bool = False
+    ) -> int:
+        """Восстанавливает DT-файл в информационную базу через ibcmd."""
+        if not self.is_available():
+            raise ToolNotFoundError("ibcmd.exe не найден в системе")
+
+        self.logger.info(f"Восстановление информационной базы из DT: {dt_file}...")
+        cmd = [str(self.tool_path), 'infobase', 'restore']
+        cmd.extend(
+            self._infobase_connection_args(db_path, use_server=use_server)
+        )
+        if not use_server and not (db_path / '1cv8.1cd').exists():
+            cmd.append('--create-database')
+        cmd.extend(['--force', str(dt_file)])
+        self._log_command(cmd)
+
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+                errors='replace'
+            )
+            if result.returncode != 0:
+                raise ToolExecutionError(
+                    "Ошибка при восстановлении информационной базы из DT",
+                    tool_output=result.stderr or result.stdout
+                )
+            return result.returncode
         except subprocess.SubprocessError as e:
             raise ToolExecutionError(f"Ошибка запуска ibcmd.exe: {e}")
     
