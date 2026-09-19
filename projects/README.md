@@ -1,149 +1,180 @@
 # Проекты конвертации
 
-Эта папка содержит ваши рабочие проекты для конвертации файлов 1С.
+В этой папке хранятся общие настройки и проектные `.env`-файлы для запуска конвертаций через GUI или командную строку.
 
-## Структура проекта
+## Структура
 
-Каждый проект должен находиться в отдельной папке и содержать:
-
-1. **Один или несколько .env файлов** с настройками
-2. **Обязательный параметр ScriptName** - имя скрипта конвертации
-
-### Пример структуры:
-
-```
+```text
 projects/
-├── base_1.env                    # Базовая конфигурация (общая для всех проектов)
-└── МойПроект/                    # Папка проекта
-    └── project.env               # Настройки проекта
+├── base.env                 # Общие настройки для всех проектов
+└── МойПроект/
+    └── project.env          # Настройки конкретного проекта
 ```
 
-## Создание нового проекта
+Все `.env`-файлы из корня `projects/` загружаются как базовые. Затем к ним применяются файлы выбранного проекта, поэтому проектные значения переопределяют общие.
 
-### Шаг 1: Создайте базовую конфигурацию (если еще не создана)
+## Создание проекта
 
-Скопируйте шаблон:
-```bash
-copy ..\src\config\base.env.template base_1.env
-```
+1. Создайте базовую конфигурацию из [шаблона](../src/config/base.env.template):
 
-Отредактируйте `base_1.env` и укажите:
-- `V8_VERSION` - версия платформы 1С
-- `V8_TOOL` - путь к 1cv8.exe
-- `EDTCLI_TOOL` - путь к 1cedtcli.exe
-- `V8_TEMP` - путь для временных файлов
+   ```powershell
+   Copy-Item ..\src\config\base.env.template .\base.env
+   ```
 
-### Шаг 2: Создайте папку проекта
+2. Укажите в `base.env` общие параметры, например пути к платформе, EDT и временному каталогу:
 
-```bash
-mkdir МойПроект
-cd МойПроект
-```
+   ```env
+   V8_VERSION=8.5.1.1522
+   V8_TOOL="C:\Program Files\1cv8\8.5.1.1522\bin\1cv8.exe"
+   IBCMD_TOOL="C:\Program Files\1cv8\8.5.1.1522\bin\ibcmd.exe"
+   EDTCLI_TOOL="C:\Program Files\1C\1CE\components\1c-edt-2025.2.3\1cedtcli.exe"
+   V8_TEMP=C:\Temp\1c-convert-kit
+   ```
 
-### Шаг 3: Создайте .env файл проекта
+3. Создайте каталог проекта и файл `project.env`:
 
-Создайте файл `project.env` со следующим содержимым:
+   ```env
+   ScriptName=dp2epf
+   V8_SRC_PATH=F:\1C\Sources\МояОбработка
+   V8_DST_PATH=F:\1C\Output
+   ```
+
+`ScriptName` указывается **без расширения `.cmd`**.
+
+## Доступные сценарии
+
+### Конфигурации и информационные базы
+
+- `conf2cf` — конфигурация → CF
+- `conf2xml` — конфигурация → проект XML
+- `conf2edt` — конфигурация → проект EDT
+- `conf2ib` — конфигурация → информационная база
+- `dt2ib` — DT → информационная база
+- `ib2dt` — информационная база → DT
+
+### Обработки и отчеты
+
+- `dp2epf` — обработка → EPF
+- `dp2erf` — отчет → ERF
+- `dp2xml` — обработка или отчет → проект XML
+- `dp2edt` — обработка или отчет → проект EDT
+
+### Расширения
+
+- `ext2cfe` — расширение → CFE
+- `ext2xml` — расширение → XML
+- `ext2edt` — расширение → EDT
+- `ext2ib` — расширение → информационная база
+
+### Валидация
+
+- `edt-validate` — проверка EDT-проекта
+
+## Основные параметры
+
+- `ScriptName` — сценарий конвертации.
+- `V8_SRC_PATH` — источник.
+- `V8_DST_PATH` — назначение.
+- `V8_CONVERT_TOOL` — инструмент для операций с конфигурациями, расширениями и DT/ИБ: `designer` по умолчанию или `ibcmd`.
+- `V8_IB_USER`, `V8_IB_PWD` — учетные данные пользователя информационной базы.
+- `V8_EXT_NAME` — имя расширения для сценариев `ext2*`.
+- `V8_TEMP_AFTER_CLEAN=0` — сохранить временные файлы после успешной конвертации; при значении `1` они удаляются.
+
+Для `ibcmd` при необходимости задаются `IBCMD_TOOL`, `IBCMD_DATA`, `V8_DB_SRV_DBMS`, `V8_IB_SERVER`, `V8_IB_NAME`, `V8_DB_SRV_USR` и `V8_DB_SRV_PWD`.
+
+Полный перечень и описание параметров находятся в [params_descriptions.json](../src/config/params_descriptions.json), а зависимости параметров — в [params_depend.json](../src/config/params_depend.json).
+
+## Обновление информационной базы после загрузки
+
+Параметр `V8_IB_UPDATE` доступен для `conf2ib`, `dt2ib` и `ext2ib`:
+
+- `V8_IB_UPDATE=0` — не обновлять конфигурацию базы данных после загрузки; значение по умолчанию.
+- `V8_IB_UPDATE=1` — выполнить обновление после загрузки.
+
+Для `dt2ib` восстановление DT в любом случае заменяет содержимое целевой базы. `V8_IB_UPDATE` управляет только последующим обновлением конфигурации базы данных.
+
+## Ссылки на информационные базы
+
+Файловую базу можно задать обычным путем или строкой соединения `/F`:
 
 ```env
-# Имя скрипта конвертации (обязательно!)
-ScriptName=dp2epf.cmd
-
-# Путь к исходникам
-V8_SRC_PATH=f:\1C\Sources\МояОбработка
-
-# Путь для сохранения результата
-V8_DST_PATH=f:\1C\Output
+V8_DST_PATH=F:\1C\Bases\Demo
+# или
+V8_DST_PATH=/FF:\1C\Bases\Demo
 ```
 
-### Доступные скрипты конвертации:
+Серверная база задается строкой `/Sсервер\база`:
 
-#### Конфигурации:
-- `conf2cf.cmd` - в CF файл
-- `conf2xml.cmd` - в XML
-- `conf2edt.cmd` - в EDT проект
-- `conf2ib.cmd` - в информационную базу
+```env
+V8_DST_PATH=/Sserver1c\Demo
+```
 
-#### Обработки/Отчеты:
-- `dp2epf.cmd` - в EPF/ERF файл
-- `dp2xml.cmd` - в XML
-- `dp2edt.cmd` - в EDT проект
-
-#### Расширения:
-- `ext2cfe.cmd` - в CFE файл
-- `ext2xml.cmd` - в XML
-- `ext2edt.cmd` - в EDT проект
-- `ext2ib.cmd` - в информационную базу
-
-#### Валидация:
-- `edt-validate.cmd` - валидация EDT проекта
-
-## Параметры .env файлов
-
-### Общие параметры (base_1.env):
-- `V8_VERSION` - версия платформы 1С
-- `V8_EDT_VERSION` - версия EDT
-- `V8_TOOL` - путь к 1cv8.exe
-- `EDTCLI_TOOL` - путь к 1cedtcli.exe
-- `RING_TOOL` - путь к ring.cmd
-- `V8_TEMP` - каталог для временных файлов
-
-### Параметры проекта (project.env):
-- `ScriptName` - имя скрипта конвертации (обязательно!)
-- `V8_SRC_PATH` - путь к источнику
-- `V8_DST_PATH` - путь назначения
-- `V8_EXT_NAME` - имя расширения (для ext2* скриптов)
-
-Полное описание параметров см. в `src/config/params_descriptions.json`
+Для `ib2dt` ссылка на базу указывается в `V8_SRC_PATH`, а путь к DT-файлу — в `V8_DST_PATH`.
 
 ## Примеры
 
-### Пример 1: Конвертация обработки из EDT в EPF
+### Восстановление DT в базу с последующим обновлением
 
 ```env
-ScriptName=dp2epf.cmd
-V8_SRC_PATH=f:\1C\Projects\MyProject\src\DataProcessors\MyProcessor
-V8_DST_PATH=f:\1C\Output
+ScriptName=dt2ib
+V8_SRC_PATH=F:\1C\Backups\Demo.dt
+V8_DST_PATH=/Sserver1c\Demo
+V8_CONVERT_TOOL=designer
+V8_IB_UPDATE=1
 ```
 
-### Пример 2: Конвертация конфигурации из XML в CF
+Чтобы восстановить DT без последующего обновления, удалите `V8_IB_UPDATE` или установите `0`.
+
+### Выгрузка базы в DT через ibcmd
 
 ```env
-ScriptName=conf2cf.cmd
-V8_SRC_PATH=f:\1C\Configs\MyConfig\xml
-V8_DST_PATH=f:\1C\Output\MyConfig.cf
+ScriptName=ib2dt
+V8_SRC_PATH=/Sserver1c\Demo
+V8_DST_PATH=F:\1C\Backups\Demo.dt
+V8_CONVERT_TOOL=ibcmd
 ```
 
-### Пример 3: Конвертация расширения в CFE
+Параметры доступа к СУБД для `ibcmd` обычно удобно хранить в `base.env`.
+
+### Загрузка конфигурации в базу
 
 ```env
-ScriptName=ext2cfe.cmd
-V8_SRC_PATH=f:\1C\Extensions\MyExtension
-V8_DST_PATH=f:\1C\Output\MyExtension.cfe
+ScriptName=conf2ib
+V8_SRC_PATH=F:\1C\Configs\Demo.cf
+V8_DST_PATH=F:\1C\Bases\Demo
+V8_IB_UPDATE=1
+```
+
+### Загрузка расширения в базу
+
+```env
+ScriptName=ext2ib
+V8_SRC_PATH=F:\1C\Extensions\MyExtension.cfe
+V8_DST_PATH=/Sserver1c\Demo
 V8_EXT_NAME=MyExtension
+V8_IB_UPDATE=1
 ```
 
-## Использование через GUI
+## Запуск
 
-1. Запустите `run_gui.cmd` из корня проекта
-2. В таблице отобразятся все проекты из этой папки
-3. Выберите нужные проекты (кликните по строке)
-4. Нажмите "ВЫПОЛНИТЬ"
-5. Следите за прогрессом в логе
+Через GUI:
 
-## Использование через командную строку
+```powershell
+python src\gui\main.py
+```
 
-```bash
+Также можно использовать `run_gui.cmd` или `run_gui.sh` из корня репозитория.
+
+Через командную строку:
+
+```powershell
 python src\core\convert.py --env projects\МойПроект
 ```
 
 С переопределением пути назначения:
-```bash
-python src\core\convert.py --env projects\МойПроект --output f:\NewOutput
+
+```powershell
+python src\core\convert.py --env projects\МойПроект --output F:\NewOutput
 ```
 
-## Примечания
-
-- Базовый .env файл загружается автоматически
-- Параметры из project.env переопределяют параметры из base_1.env
-- Пути с пробелами автоматически заключаются в кавычки
-- Относительные пути преобразуются в абсолютные
+Файлы читаются с поддержкой `utf-8-sig`, `utf-8` и `cp1251`; комментарии и значения в кавычках поддерживаются. Дополнительное описание возможностей и архитектуры см. в [основном README](../README.md).
