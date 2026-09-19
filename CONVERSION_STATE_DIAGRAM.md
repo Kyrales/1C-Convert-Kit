@@ -24,7 +24,7 @@ stateDiagram-v2
         RegistryLookup : ConverterRegistry().get_converter()
     }
 
-    Core --> CFG : conf2cf / conf2xml / conf2edt / conf2ib
+    Core --> CFG : conf2cf / conf2xml / conf2edt / conf2ib / dt2ib / ib2dt
     Core --> DP : dp2epf / dp2erf / dp2xml / dp2edt
     Core --> EXT : ext2cfe / ext2xml / ext2edt / ext2ib
     Core --> VAL : edt-validate
@@ -42,6 +42,7 @@ stateDiagram-v2
         CFG_SOURCE --> CFG_XML : XML
         CFG_SOURCE --> CFG_IB : FILE_IB / SERVER_IB
         CFG_SOURCE --> CFG_CF : CF
+        CFG_SOURCE --> CFG_DT : DT
         CFG_SOURCE --> CFG_FAIL : unsupported source
 
         state "Source = EDT" as CFG_EDT {
@@ -73,12 +74,19 @@ stateDiagram-v2
             CFG_IB_BRANCH --> CFG_IB_SAME : ScriptName=conf2ib and src==dst
             CFG_IB_BRANCH --> CFG_IB_ERR : ScriptName=conf2ib and src!=dst
             CFG_IB_BRANCH --> CFG_IB_CF : ScriptName=conf2cf
+            CFG_IB_BRANCH --> CFG_IB_DT : ScriptName=ib2dt
 
             CFG_IB_XML : IB -> XML\nvia designer or ibcmd
             CFG_IB_EDT : IB -> temp XML -> EDT\nvia designer or ibcmd + edt_tool
             CFG_IB_SAME : no-op\nreturn 0
             CFG_IB_ERR : ValidationError\nIB -> another IB not supported
             CFG_IB_CF : IB -> CF\nvia designer or ibcmd
+            CFG_IB_DT : IB -> DT\nvia designer or ibcmd
+        }
+
+        state "Source = DT" as CFG_DT {
+            [*] --> CFG_DT_IB
+            CFG_DT_IB : ScriptName=dt2ib\nDT -> target IB\nvia designer or ibcmd
         }
 
         state "Source = CF" as CFG_CF {
@@ -136,11 +144,14 @@ stateDiagram-v2
         EXT_TEMP --> EXT_SOURCE
         EXT_SOURCE : detect_source_type()
 
+        EXT_SOURCE --> EXT_TARGET_IB : ScriptName=ext2ib\nsource EDT / XML / CFE
         EXT_SOURCE --> EXT_EDT : EDT
         EXT_SOURCE --> EXT_XML : XML
         EXT_SOURCE --> EXT_IB : FILE_IB / SERVER_IB
         EXT_SOURCE --> EXT_CFE : CFE
         EXT_SOURCE --> EXT_FAIL : unsupported source
+
+        EXT_TARGET_IB : EDT -> temp XML -> target IB\nor XML/CFE -> target IB\nvia designer or ibcmd
 
         state "Source = EDT" as EXT_EDT {
             [*] --> EXT_EDT_1
@@ -218,7 +229,7 @@ stateDiagram-v2
     CoreError --> [*]
 ```
 
-## Что важно учитывать при чтении схемы
+## Примечания и ограничения
 
 - Схема отражает текущее рабочее состояние `src/`, а не только ожидаемую архитектуру по названиям `ScriptName`.
 - Для `ConfigurationConverter` реально реализованы рабочие маршруты:
@@ -226,6 +237,7 @@ stateDiagram-v2
   - `XML -> XML`, `XML -> IB`, `XML -> CF`
   - `IB -> XML`, `IB -> EDT`, `IB -> CF`
   - `CF -> XML`, `CF -> EDT`, `CF -> IB`
+  - `DT -> IB`, `IB -> DT`
 - Для `ConfigurationConverter` есть важные расхождения:
   - при источнике `EDT` или `XML` и `ScriptName=conf2edt` отдельной EDT-ветки нет; код попадает в fallback-путь, который ведет в `CF`;
   - `IB -> IB` поддержан только как no-op, если источник и назначение совпадают;
@@ -239,10 +251,10 @@ stateDiagram-v2
   - `IB -> CFE`
   - `CFE -> XML`
   - `CFE -> EDT`
+  - `EDT/XML/CFE -> IB`
 - Для `ExtensionConverter` есть расхождения:
-  - `ext2ib` зарегистрирован в реестре, но отдельного алгоритма загрузки в целевую ИБ в текущем Python-коде нет;
-  - ветки `EDT/XML/IB` всегда приходят к экспорту в `CFE`;
-  - валидация `ext2ib` сейчас ожидает путь назначения как `.cfe`, что подтверждает текущее смещение реализации в сторону `CFE`.
+  - ветки `EDT/XML/IB` для сценариев, кроме `ext2ib`, приходят к экспорту в `CFE`;
+  - `ext2ib` принимает `EDT`, `XML` и `CFE`, но не загружает расширение из другой ИБ.
 - Для `ValidationConverter` вход должен быть уже EDT-проектом. Автоматического предварительного преобразования из `CF/XML/CFE/IB` внутри Python-валидатора нет.
 
 ## Какие файлы являются источником истины для схемы

@@ -149,7 +149,7 @@ python tests/unit/test_editor_improvements.py
 ## Общие требования
 
 ### Зависимости
-- Python 3.7+
+- Python 3.8+
 - FreeSimpleGUI или PySimpleGUI
 - src.gui модули
 
@@ -251,4 +251,3 @@ python tests/unit/test_project_editor_unit.py
 **Решение:** Используйте автоматизированные тесты:
 - `test_project_editor_unit.py` - не открывает GUI
 - `test_project_editor_auto.py` - автоматически закрывается через 3 секунды
-

@@ -1,6 +1,6 @@
-# 🚀 Быстрый старт - 1C Convert Kit
+# 🚀 Быстрый старт — 1C Convert Kit
 
-Начните работу с 1C Convert Kit за 5 минут!
+Краткая инструкция по установке, настройке и запуску первой конвертации.
 
 ---
 
@@ -9,7 +9,7 @@
 ### 1. Клонирование и установка зависимостей
 
 ```bash
-git clone https://github.com/username/1c-convert-kit.git
+git clone https://github.com/Kyrales/1C-Convert-Kit.git
 cd 1c-convert-kit
 pip install -r requirements.txt
 ```
@@ -20,7 +20,7 @@ pip install -r requirements.txt
 # Windows
 copy src\config\base.env.template projects\base.env
 
-# Linux/Mac
+# Linux (поддержка ограничена, работа не тестировалась)
 cp src/config/base.env.template projects/base.env
 ```
 
@@ -30,10 +30,10 @@ cp src/config/base.env.template projects/base.env
 V8_VERSION=8.5.1.1522
 
 # Путь к 1cv8.exe
-V8_TOOL_PATH="C:\Program Files\1cv8\8.5.1.1522\bin\1cv8.exe"
+V8_TOOL="C:\Program Files\1cv8\8.5.1.1522\bin\1cv8.exe"
 
 # Путь к EDT (1cedtcli или ring)
-EDT_TOOL_PATH="f:\1C\Projects\EDT\installations\1C_EDT 2025.1\1cedt\1cedtcli.exe"
+EDTCLI_TOOL="C:\Program Files\1C\1CE\components\1c-edt-2025.2.3\1cedtcli.exe"
 ```
 
 ### 3. Запуск
@@ -42,7 +42,7 @@ EDT_TOOL_PATH="f:\1C\Projects\EDT\installations\1C_EDT 2025.1\1cedt\1cedtcli.exe
 # Windows
 run_gui.cmd
 
-# Linux/Mac
+# Linux (поддержка ограничена, работа не тестировалась)
 ./run_gui.sh
 
 # Или напрямую
@@ -129,11 +129,11 @@ V8_DST_PATH=C:\Output\MyConfiguration.cf
 
 # Версия и инструменты (если не указаны в base.env)
 V8_VERSION=8.5.1.1522
-V8_TOOL_PATH=C:\Program Files\1cv8\8.5.1.1522\bin\1cv8.exe
-EDT_TOOL_PATH=C:\Users\YourName\edt\ring.bat
+V8_TOOL=C:\Program Files\1cv8\8.5.1.1522\bin\1cv8.exe
+EDTCLI_TOOL=C:\Users\YourName\edt\1cedtcli.exe
 
 # Дополнительные параметры
-TEMP_CLEANUP=1                    # Очистка временных файлов (1=да, 0=нет)
+V8_TEMP_AFTER_CLEAN=1             # Очистка временных файлов (1=да, 0=нет)
 V8_IB_USER=Администратор          # Пользователь ИБ (если требуется)
 V8_IB_PWD=password                # Пароль (если требуется)
 ```
@@ -225,7 +225,7 @@ pip install FreeSimpleGUI
 ```
 
 **Решение:**
-1. Укажите `V8_TOOL_PATH` в `projects/base.env`
+1. Укажите `V8_TOOL` в `projects/base.env`
 2. Или укажите в конкретном проекте
 3. Проверьте, что путь существует и файл запускается
 
@@ -259,7 +259,7 @@ pip install FreeSimpleGUI
 **Проблема:** Папка `temp/` заполняется
 
 **Решение:**
-1. Добавьте в .env файл: `TEMP_CLEANUP=1`
+1. Добавьте в `.env`-файл: `V8_TEMP_AFTER_CLEAN=1`
 2. Или удалите вручную: `rmdir /s /q temp` (Windows)
 3. Временные файлы сохраняются при ошибках для отладки
 
@@ -269,9 +269,9 @@ pip install FreeSimpleGUI
 
 - 📚 Изучите [полную документацию](README.md)
 - 🎨 Настройте [базовую конфигурацию](docs/BASE_ENV_DISPLAY_FEATURE.md)
-- 🏗️ Изучите [архитектуру проекта](README.md#-архитектура)
+- 🏗️ Изучите [архитектуру проекта](README.md#architecture)
 - 🧪 Запустите [тесты](tests/README.md)
-- 🤝 Внесите [вклад в проект](README.md#-вклад-в-проект)
+- 🤝 Внесите [вклад в проект](README.md#contributing)
 
 ---
 
@@ -288,6 +288,4 @@ pip install FreeSimpleGUI
 
 ---
 
-**Удачи! 🚀**
-
-Если возникнут вопросы - смотрите [README.md](README.md) или создайте [issue](https://github.com/username/1c-convert-kit/issues)
+Дополнительные сведения есть в [README.md](README.md). Об ошибках можно сообщить в [GitHub Issues](https://github.com/Kyrales/1C-Convert-Kit/issues).

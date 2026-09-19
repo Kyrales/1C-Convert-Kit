@@ -10,17 +10,21 @@
 - **EDT** - проект 1C:Enterprise Development Tools
 - **XML** - XML файлы конфигурации
 - **InfoBase** - информационная база с конфигурацией
+- **CF** - файл конфигурации
+- **DT** - файл выгрузки информационной базы
 
 ### Выходные форматы:
 - **CF** - файл конфигурации (.cf)
 - **XML** - XML файлы конфигурации
 - **EDT** - проект EDT
+- **InfoBase** - файловая или серверная информационная база
+- **DT** - файл выгрузки информационной базы
 
 ## Обязательные параметры
 
 - `V8_SRC_PATH` - путь к источнику (EDT проект, XML файлы или ИБ)
 - `V8_DST_PATH` - путь к выходному файлу/директории
-- `ScriptName` - тип конвертации (`conf2cf`, `conf2xml`, `conf2edt`)
+- `ScriptName` - тип конвертации (`conf2cf`, `conf2xml`, `conf2edt`, `conf2ib`, `dt2ib` или `ib2dt`)
 
 ## Опциональные параметры
 
@@ -190,9 +194,6 @@ if result == 0:
 # Конвертация одного проекта
 python src/core/convert.py --env projects/MyProject/project.env
 
-# Конвертация с базовой конфигурацией
-python src/core/convert.py --env projects/base.env --env projects/MyProject/project.env
-
 # Конвертация с указанием выходного пути
 python src/core/convert.py --env projects/MyProject/project.env --output C:/Output
 ```
@@ -262,7 +263,7 @@ C:/InfoBases/MyBase/1Cv8.1CD
 
 ## Требования
 
-- Python 3.7+
+- Python 3.8+
 - Платформа 1С:Предприятие 8.3+
 - EDT (для конвертации из/в EDT проекты)
 - Достаточно места на диске для временных файлов

@@ -212,7 +212,7 @@ exit_code = tool.export_to_xml(
 
 ## Создание нового конвертера
 
-Для создания нового конвертера необходимо:
+Чтобы добавить конвертер:
 
 1. Наследоваться от `BaseConverter`
 2. Реализовать абстрактные методы
@@ -278,7 +278,7 @@ class MyConverter(BaseConverter):
 - `V8_TOOL` - путь к 1cv8.exe
 - `IBCMD_TOOL` - путь к ibcmd.exe
 - `RING_TOOL` - путь к ring.bat
-- `EDT_TOOL` - путь к 1cedtcli.exe
+- `EDTCLI_TOOL` - путь к 1cedtcli.exe
 - `V8_EDT_VERSION` - версия EDT (по умолчанию `2025.1.5`)
 
 ## Обработка ошибок
