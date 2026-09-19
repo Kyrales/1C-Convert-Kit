@@ -18,6 +18,7 @@ from ..base.converter import (
     ToolExecutionError
 )
 from ..base.tools import V8ToolWrapper, IbcmdToolWrapper, EdtToolWrapper
+from ..base.ib_utils import parse_ib_reference
 
 
 class ExtensionConverter(BaseConverter):
@@ -55,7 +56,9 @@ class ExtensionConverter(BaseConverter):
         self.ext_name = env_vars.get('V8_EXT_NAME', '')
         self.base_ib = env_vars.get('V8_BASE_IB', '')
         self.base_config = env_vars.get('V8_BASE_CONFIG', '')
-        self.convert_tool = env_vars.get('V8_CONVERT_TOOL', 'designer')
+        self.convert_tool = env_vars.get(
+            'V8_CONVERT_TOOL', 'designer'
+        ).strip().lower()
         
         # Инициализация инструментов
         self.v8_tool = V8ToolWrapper(env_vars, self.logger)
@@ -89,8 +92,37 @@ class ExtensionConverter(BaseConverter):
         
         dst_path_obj = Path(self.dst_path)
         
+        if script_name == 'ext2ib':
+            if not self.ext_name:
+                raise ValidationError(
+                    "Не указан параметр V8_EXT_NAME (имя расширения)."
+                )
+            if self.convert_tool not in ['designer', 'ibcmd']:
+                raise ValidationError(
+                    "V8_CONVERT_TOOL для ext2ib должен быть designer или ibcmd, "
+                    f"получено: {self.convert_tool}"
+                )
+            self._validate_binary_env_flag('V8_IB_UPDATE')
+            is_server, server, base = parse_ib_reference(self.dst_path)
+            looks_server = (
+                self.dst_path.lower().startswith('/s')
+                or 'srvr=' in self.dst_path.lower()
+                or 'ref=' in self.dst_path.lower()
+            )
+            if looks_server and not (is_server and server and base):
+                raise ValidationError(
+                    f"Некорректная серверная ИБ в V8_DST_PATH: {self.dst_path}"
+                )
+            if not is_server:
+                ib_path = Path(base or self.dst_path)
+                if not (ib_path / '1cv8.1cd').exists():
+                    raise ValidationError(
+                        f"V8_DST_PATH должен указывать на существующую файловую ИБ: {self.dst_path}"
+                    )
+            return
+
         # Для конвертации в CFE файл
-        if script_name in ['ext2cfe', 'ext2ib']:
+        if script_name == 'ext2cfe':
             # Проверка обязательного параметра V8_EXT_NAME
             if not self.ext_name:
                 raise ValidationError(
@@ -138,6 +170,9 @@ class ExtensionConverter(BaseConverter):
         source_type = self.detect_source_type()
         self.log_info(f"Тип источника: {source_type.value}")
         self.log_info(f"Имя расширения: {self.ext_name}")
+
+        if self.env_vars.get('ScriptName', '').lower() == 'ext2ib':
+            return self._convert_to_ib(source_type)
         
         # Маршрутизация по типу источника
         if source_type == SourceType.EDT:
@@ -153,6 +188,90 @@ class ExtensionConverter(BaseConverter):
                 f"Неподдерживаемый тип источника: {source_type.value}. " +
                 f"Поддерживаются: EDT, XML, InfoBase, CFE"
             )
+
+    def _convert_to_ib(self, source_type: SourceType) -> int:
+        """Загружает расширение из CFE, XML или EDT в целевую ИБ."""
+        if source_type not in [SourceType.CFE_FILE, SourceType.XML, SourceType.EDT]:
+            raise ValidationError(
+                "ext2ib поддерживает источники CFE, XML и EDT"
+            )
+        assert self.temp_dir is not None, "temp_dir должна быть создана перед конвертацией"
+
+        if self.convert_tool == 'ibcmd':
+            if not self.ibcmd_tool.is_available():
+                raise ToolNotFoundError("ibcmd.exe не найден в системе")
+        elif not self.v8_tool.is_available():
+            raise ToolNotFoundError("1cv8.exe не найден в системе")
+
+        source_path = Path(self.src_path)
+        if source_type == SourceType.EDT:
+            if not self.edt_tool.is_available():
+                raise ToolNotFoundError("EDT инструмент (1cedtcli/ring) не найден")
+            xml_path = self.temp_dir / 'extension_xml'
+            workspace = self.temp_dir / 'edt_ws'
+            xml_path.mkdir(parents=True, exist_ok=True)
+            workspace.mkdir(parents=True, exist_ok=True)
+            result = self.edt_tool.export_to_xml(
+                edt_project=source_path,
+                xml_output=xml_path,
+                workspace=workspace,
+            )
+            if result != 0:
+                raise ToolExecutionError(
+                    "Ошибка при экспорте EDT проекта расширения в XML",
+                    temp_dir=self.temp_dir,
+                )
+            source_path = xml_path
+
+        is_server, _, file_path = parse_ib_reference(self.dst_path)
+        db_path = Path('.') if is_server else Path(file_path or self.dst_path)
+        if self.convert_tool == 'ibcmd':
+            if source_type == SourceType.CFE_FILE:
+                result = self.ibcmd_tool.import_config_from_cf(
+                    db_path=db_path,
+                    cf_file=source_path,
+                    extension_name=self.ext_name,
+                    use_server=is_server,
+                )
+            else:
+                result = self.ibcmd_tool.import_config_from_xml(
+                    db_path=db_path,
+                    xml_path=source_path,
+                    extension_name=self.ext_name,
+                    use_server=is_server,
+                )
+        else:
+            log_file = self.temp_dir / 'load_extension.log'
+            ib_connection = self.dst_path if is_server else str(db_path)
+            if source_type == SourceType.CFE_FILE:
+                result = self.v8_tool.load_config_from_cf(
+                    ib_connection=ib_connection,
+                    cf_file=source_path,
+                    log_file=log_file,
+                    extension_name=self.ext_name,
+                )
+            else:
+                result = self.v8_tool.load_config_from_files(
+                    ib_connection=ib_connection,
+                    xml_path=source_path,
+                    log_file=log_file,
+                    extension_name=self.ext_name,
+                )
+        if result != 0:
+            raise ToolExecutionError(
+                "Ошибка при загрузке расширения в информационную базу",
+                temp_dir=self.temp_dir,
+            )
+
+        self._update_infobase_if_requested(
+            self.dst_path,
+            self.convert_tool,
+            self.v8_tool,
+            self.ibcmd_tool,
+            extension_name=self.ext_name,
+        )
+        self.report_progress("Конвертация завершена", 100)
+        return 0
     
     def _prepare_base_ib(self) -> str:
         """

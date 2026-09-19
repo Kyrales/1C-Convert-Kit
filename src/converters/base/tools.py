@@ -513,6 +513,54 @@ class V8ToolWrapper(ToolWrapper):
             return result.returncode
         except subprocess.SubprocessError as e:
             raise ToolExecutionError(f"Ошибка запуска 1cv8.exe: {e}")
+
+    def update_database_configuration(
+        self,
+        ib_connection: str,
+        log_file: Path,
+        extension_name: Optional[str] = None,
+    ) -> int:
+        """Обновляет конфигурацию базы данных через DESIGNER."""
+        if not self.is_available():
+            raise ToolNotFoundError("1cv8.exe не найден в системе")
+
+        cmd = [
+            str(self.tool_path),
+            'DESIGNER',
+            '/IBConnectionString', self._build_ib_connection_string(ib_connection),
+            '/DisableStartupDialogs',
+            '/Out', str(log_file),
+            '/UpdateDBCfg',
+        ]
+        self._append_ib_credentials(cmd)
+        if extension_name:
+            cmd.extend(['-Extension', extension_name])
+        self._log_command(cmd)
+
+        try:
+            if log_file.exists():
+                log_file.unlink()
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding='cp1251',
+                errors='replace',
+            )
+            errors = []
+            if log_file.exists():
+                from .converter import ToolOutputParser
+                errors, _ = ToolOutputParser.parse_designer_log(
+                    log_file, self.logger
+                )
+            if errors or result.returncode != 0:
+                raise ToolExecutionError(
+                    "Ошибка при обновлении конфигурации информационной базы",
+                    tool_output='\n'.join(errors) or result.stderr or result.stdout,
+                )
+            return result.returncode
+        except subprocess.SubprocessError as e:
+            raise ToolExecutionError(f"Ошибка запуска 1cv8.exe: {e}")
     
     def dump_config(
         self, 
@@ -668,7 +716,8 @@ class V8ToolWrapper(ToolWrapper):
         self,
         ib_connection: str,
         cf_file: Path,
-        log_file: Path
+        log_file: Path,
+        extension_name: Optional[str] = None,
     ) -> int:
         """
         Загружает конфигурацию из CF файла в ИБ.
@@ -700,6 +749,9 @@ class V8ToolWrapper(ToolWrapper):
             '/Out', str(log_file),
             '/LoadCfg', str(cf_file)
         ]
+
+        if extension_name:
+            cmd.extend(['-Extension', extension_name])
         
         self._append_ib_credentials(cmd)
         self._log_command(cmd)
@@ -815,6 +867,10 @@ class IbcmdToolWrapper(ToolWrapper):
     
     Предоставляет методы для создания ИБ и сохранения конфигураций.
     """
+
+    def __init__(self, env_vars: Dict[str, str], logger: Logger):
+        super().__init__(env_vars, logger)
+        self.last_import_tool = 'ibcmd'
     
     def find_tool(self) -> Optional[Path]:
         """
@@ -866,6 +922,17 @@ class IbcmdToolWrapper(ToolWrapper):
                 ib_name = base
                 break
         return ib_server, ib_name
+
+    def _designer_server_connection(
+        self, fallback_server: str, fallback_name: str
+    ) -> str:
+        """Возвращает кластерную ссылку ИБ для fallback через DESIGNER."""
+        for key in ('V8_DST_PATH', 'V8_SRC_PATH'):
+            value = self.env_vars.get(key, '')
+            is_server, server, name = parse_ib_reference(value)
+            if is_server and server and name:
+                return value
+        return f'/S{fallback_server}\\{fallback_name}'
     
     def execute(self, *args: str, **kwargs: str) -> subprocess.CompletedProcess[str]:
         """
@@ -1071,11 +1138,50 @@ class IbcmdToolWrapper(ToolWrapper):
             return result.returncode
         except subprocess.SubprocessError as e:
             raise ToolExecutionError(f"Ошибка запуска ibcmd.exe: {e}")
+
+    def update_database_configuration(
+        self,
+        db_path: Path,
+        *,
+        use_server: bool = False,
+        extension_name: Optional[str] = None,
+    ) -> int:
+        """Обновляет конфигурацию базы данных через ibcmd."""
+        if not self.is_available():
+            raise ToolNotFoundError("ibcmd.exe не найден в системе")
+
+        cmd = [str(self.tool_path), 'infobase', 'config', 'apply']
+        cmd.extend(
+            self._infobase_connection_args(db_path, use_server=use_server)
+        )
+        if extension_name:
+            cmd.append(f'--extension={extension_name}')
+        cmd.append('--force')
+        self._log_command(cmd)
+
+        try:
+            result = subprocess.run(
+                cmd,
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+            )
+            if result.returncode != 0:
+                raise ToolExecutionError(
+                    "Ошибка при обновлении конфигурации информационной базы",
+                    tool_output=result.stderr or result.stdout,
+                )
+            return result.returncode
+        except subprocess.SubprocessError as e:
+            raise ToolExecutionError(f"Ошибка запуска ibcmd.exe: {e}")
     
     def import_config_from_xml(
         self,
         db_path: Path,
-        xml_path: Path
+        xml_path: Path,
+        extension_name: Optional[str] = None,
+        use_server: Optional[bool] = None,
     ) -> int:
         """
         Импортирует конфигурацию в существующую ИБ из XML (файловую или серверную).
@@ -1119,6 +1225,7 @@ class IbcmdToolWrapper(ToolWrapper):
                 ...     xml_path=Path('F:/1C/Projects/1c-convert-kit/tests/fixtures/cf/ConfXML')
                 ... )
         """
+        self.last_import_tool = 'ibcmd'
         if not self.is_available():
             raise ToolNotFoundError("ibcmd.exe не найден в системе")
         
@@ -1128,6 +1235,13 @@ class IbcmdToolWrapper(ToolWrapper):
         ib_user = self.env_vars.get('V8_IB_USER', '')
         ib_pwd = self.env_vars.get('V8_IB_PWD', '')
         ib_server, ib_name = self._resolve_server_ib()
+
+        if use_server is False:
+            ib_server, ib_name = '', ''
+        elif use_server is True and not (ib_server and ib_name):
+            raise ToolExecutionError(
+                "Не заданы сервер и имя базы данных для ibcmd"
+            )
         
         if ib_server and ib_name:
             db_srv_dbms = self.env_vars.get('V8_DB_SRV_DBMS', 'MSSQLServer')
@@ -1144,7 +1258,6 @@ class IbcmdToolWrapper(ToolWrapper):
                 f'--db-pwd={db_srv_pwd}',
                 f'--user={ib_user}',
                 f'--password={ib_pwd}',
-                str(xml_path)
             ]
         else:
             cmd = [
@@ -1154,8 +1267,11 @@ class IbcmdToolWrapper(ToolWrapper):
                 f'--db-path={db_path}',
                 f'--user={ib_user}',
                 f'--password={ib_pwd}',
-                str(xml_path)
             ]
+
+        if extension_name:
+            cmd.append(f'--extension={extension_name}')
+        cmd.append(str(xml_path))
         
         self._log_command(cmd)
         
@@ -1173,10 +1289,18 @@ class IbcmdToolWrapper(ToolWrapper):
                     # Fallback: используем DESIGNER для серверной ИБ
                     v8 = V8ToolWrapper(self.env_vars, self.logger)
                     log_file = Path(self.env_vars.get('V8_TEMP', 'temp')) / 'ibcmd_fallback_load_xml.log'
-                    ib_connection = f'/S{ib_server}\\{ib_name}'
+                    ib_connection = self._designer_server_connection(
+                        ib_server, ib_name
+                    )
                     self.logger.warning("Не удалось выполнить ibcmd import для серверной ИБ, выполняется загрузка через DESIGNER (fallback)")
-                    v8_result = v8.load_config_from_files(ib_connection, xml_path, log_file)
+                    v8_result = v8.load_config_from_files(
+                        ib_connection,
+                        xml_path,
+                        log_file,
+                        extension_name=extension_name,
+                    )
                     if v8_result == 0:
+                        self.last_import_tool = 'designer'
                         return 0
                 raise ToolExecutionError(
                     f"Ошибка при импорте конфигурации",
@@ -1285,7 +1409,9 @@ class IbcmdToolWrapper(ToolWrapper):
     def import_config_from_cf(
         self,
         db_path: Path,
-        cf_file: Path
+        cf_file: Path,
+        extension_name: Optional[str] = None,
+        use_server: Optional[bool] = None,
     ) -> int:
         """
         Импортирует конфигурацию из CF файла в существующую ИБ (файловую или серверную).
@@ -1331,6 +1457,7 @@ class IbcmdToolWrapper(ToolWrapper):
                 ...     cf_file=Path('C:/Builds/update.cf')
                 ... )
         """
+        self.last_import_tool = 'ibcmd'
         if not self.is_available():
             raise ToolNotFoundError("ibcmd.exe не найден в системе")
         
@@ -1340,6 +1467,13 @@ class IbcmdToolWrapper(ToolWrapper):
         ib_user = self.env_vars.get('V8_IB_USER', '')
         ib_pwd = self.env_vars.get('V8_IB_PWD', '')
         ib_server, ib_name = self._resolve_server_ib()
+
+        if use_server is False:
+            ib_server, ib_name = '', ''
+        elif use_server is True and not (ib_server and ib_name):
+            raise ToolExecutionError(
+                "Не заданы сервер и имя базы данных для ibcmd"
+            )
         
         if ib_server and ib_name:
             db_srv_dbms = self.env_vars.get('V8_DB_SRV_DBMS', 'MSSQLServer')
@@ -1357,7 +1491,6 @@ class IbcmdToolWrapper(ToolWrapper):
                 f'--user={ib_user}',
                 f'--password={ib_pwd}',
                 '--force',
-                str(cf_file)
             ]
         else:
             cmd = [
@@ -1368,8 +1501,11 @@ class IbcmdToolWrapper(ToolWrapper):
                 f'--user={ib_user}',
                 f'--password={ib_pwd}',
                 '--force',
-                str(cf_file)
             ]
+
+        if extension_name:
+            cmd.append(f'--extension={extension_name}')
+        cmd.append(str(cf_file))
         
         self._log_command(cmd)
         
@@ -1387,10 +1523,18 @@ class IbcmdToolWrapper(ToolWrapper):
                     # Fallback: DESIGNER для серверной ИБ
                     v8 = V8ToolWrapper(self.env_vars, self.logger)
                     log_file = Path(self.env_vars.get('V8_TEMP', 'temp')) / 'ibcmd_fallback_load_cf.log'
-                    ib_connection = f'/S{ib_server}\\{ib_name}'
+                    ib_connection = self._designer_server_connection(
+                        ib_server, ib_name
+                    )
                     self.logger.warning("Не удалось выполнить ibcmd load для серверной ИБ, выполняется загрузка через DESIGNER (fallback)")
-                    v8_result = v8.load_config_from_cf(ib_connection, cf_file, log_file)
+                    v8_result = v8.load_config_from_cf(
+                        ib_connection,
+                        cf_file,
+                        log_file,
+                        extension_name=extension_name,
+                    )
                     if v8_result == 0:
+                        self.last_import_tool = 'designer'
                         return 0
                 raise ToolExecutionError(
                     f"Ошибка при загрузке конфигурации из CF",

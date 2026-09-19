@@ -19,7 +19,11 @@
     ],
     "conf2cf": [
     ],
+    "conf2ib": [
+      "V8_IB_UPDATE"
+    ],
     "dt2ib": [
+      "V8_IB_UPDATE"
     ],
     "ib2dt": [
     ],
@@ -40,6 +44,7 @@
     "ext2cfe": [
     ],
     "ext2ib": [
+      "V8_IB_UPDATE"
     ],
     "edt-validate": [
     ]

@@ -703,6 +703,62 @@ class BaseConverter(ABC):
                     pass
         else:
             _ = path.mkdir(parents=True, exist_ok=True)
+
+    def _validate_binary_env_flag(self, name: str) -> None:
+        """Проверяет, что необязательный флаг окружения равен 0 или 1."""
+        value = self.env_vars.get(name, '0').strip()
+        if value not in {'0', '1'}:
+            raise ValidationError(
+                f"{name} должен быть равен 0 или 1, получено: {value}"
+            )
+
+    def _update_infobase_if_requested(
+        self,
+        ib_reference: str,
+        convert_tool: str,
+        v8_tool,
+        ibcmd_tool,
+        extension_name: Optional[str] = None,
+    ) -> None:
+        """Обновляет конфигурацию целевой ИБ при V8_IB_UPDATE=1."""
+        if self.env_vars.get('V8_IB_UPDATE', '0').strip() != '1':
+            return
+        assert self.temp_dir is not None, "temp_dir должна быть создана перед конвертацией"
+
+        target = (
+            f"расширения '{extension_name}'"
+            if extension_name
+            else "информационной базы"
+        )
+        self.logger.info(f"Обновление конфигурации {target}...")
+
+        is_server, _, file_path = parse_ib_reference(ib_reference)
+        effective_tool = convert_tool
+        if (
+            convert_tool == 'ibcmd'
+            and getattr(ibcmd_tool, 'last_import_tool', 'ibcmd') == 'designer'
+        ):
+            effective_tool = 'designer'
+
+        if effective_tool == 'ibcmd':
+            result = ibcmd_tool.update_database_configuration(
+                db_path=Path('.') if is_server else Path(file_path or ib_reference),
+                use_server=is_server,
+                extension_name=extension_name,
+            )
+        else:
+            connection = ib_reference if is_server else str(Path(file_path or ib_reference))
+            result = v8_tool.update_database_configuration(
+                connection,
+                self.temp_dir / 'update_db_cfg.log',
+                extension_name=extension_name,
+            )
+        if result != 0:
+            raise ToolExecutionError(
+                "Ошибка при обновлении конфигурации информационной базы",
+                temp_dir=self.temp_dir,
+            )
+        self.logger.success(f"Обновление конфигурации {target} завершено")
     
     # Методы логирования для удобства
     

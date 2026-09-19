@@ -54,6 +54,7 @@ class ConfigurationConverter(BaseConverter):
         if convert_tool == 'ibmcd':
             convert_tool = 'ibcmd'
         self.convert_tool = convert_tool
+        self._ib_update_finished = False
         self.v8_tool = V8ToolWrapper(env_vars, self.logger)
         self.ibcmd_tool = IbcmdToolWrapper(env_vars, self.logger)
         self.edt_tool = EdtToolWrapper(env_vars, self.logger)
@@ -66,6 +67,17 @@ class ConfigurationConverter(BaseConverter):
             str: '.cf'
         """
         return '.cf'
+
+    def report_progress(self, stage: str, percent: int):
+        """Не сообщает 100% до завершения запрошенного обновления ИБ."""
+        update_pending = (
+            self.env_vars.get('V8_IB_UPDATE', '0').strip() == '1'
+            and self.env_vars.get('ScriptName', '').lower() in ['conf2ib', 'dt2ib']
+            and not self._ib_update_finished
+        )
+        if stage == "Конвертация завершена" and percent == 100 and update_pending:
+            return
+        super().report_progress(stage, percent)
     
     def _validate_specific(self) -> None:
         """
@@ -81,6 +93,9 @@ class ConfigurationConverter(BaseConverter):
         """
         # Получаем тип конвертации
         script_name = self.env_vars.get('ScriptName', '').lower()
+
+        if script_name in ['conf2ib', 'dt2ib']:
+            self._validate_binary_env_flag('V8_IB_UPDATE')
 
         if script_name in ['dt2ib', 'ib2dt'] and self.convert_tool not in [
             'designer',
@@ -186,20 +201,34 @@ class ConfigurationConverter(BaseConverter):
         
         # Маршрутизация по типу источника
         if source_type == SourceType.EDT:
-            return self._convert_from_edt()
+            result = self._convert_from_edt()
         elif source_type == SourceType.XML:
-            return self._convert_from_xml()
+            result = self._convert_from_xml()
         elif source_type in [SourceType.FILE_IB, SourceType.SERVER_IB]:
-            return self._convert_from_ib()
+            result = self._convert_from_ib()
         elif source_type == SourceType.CF_FILE:
-            return self._convert_from_cf()
+            result = self._convert_from_cf()
         elif source_type == SourceType.DT_FILE:
-            return self._convert_from_dt()
+            result = self._convert_from_dt()
         else:
             raise ValidationError(
                 f"Неподдерживаемый тип источника: {source_type.value}. " +
                 f"Поддерживаются: EDT, XML, InfoBase, CF, DT"
             )
+
+        if (
+            result == 0
+            and self.env_vars.get('ScriptName', '').lower() in ['conf2ib', 'dt2ib']
+        ):
+            self._update_infobase_if_requested(
+                self.dst_path,
+                self.convert_tool,
+                self.v8_tool,
+                self.ibcmd_tool,
+            )
+            self._ib_update_finished = True
+            self.report_progress("Конвертация завершена", 100)
+        return result
 
     def _convert_from_dt(self) -> int:
         """Восстанавливает DT-файл в файловую или серверную ИБ."""
@@ -409,7 +438,8 @@ class ConfigurationConverter(BaseConverter):
                         self._set_server_ib_env(self.dst_path)
                         result = self.ibcmd_tool.import_config_from_xml(
                             db_path=Path('.'),
-                            xml_path=temp_xml
+                            xml_path=temp_xml,
+                            use_server=True,
                         )
                     else:
                         # Файловая ИБ
@@ -417,7 +447,8 @@ class ConfigurationConverter(BaseConverter):
                         if (ib_dir / '1cv8.1cd').exists():
                             result = self.ibcmd_tool.import_config_from_xml(
                                 db_path=ib_dir,
-                                xml_path=temp_xml
+                                xml_path=temp_xml,
+                                use_server=False,
                             )
                         else:
                             result = self.ibcmd_tool.create_infobase_with_config(
@@ -593,12 +624,14 @@ class ConfigurationConverter(BaseConverter):
                         if src_path_obj.suffix.lower() == '.cf':
                             result = self.ibcmd_tool.import_config_from_cf(
                                 db_path=Path('.'),
-                                cf_file=src_path_obj
+                                cf_file=src_path_obj,
+                                use_server=True,
                             )
                         else:
                             result = self.ibcmd_tool.import_config_from_xml(
                                 db_path=Path('.'),
-                                xml_path=src_path_obj
+                                xml_path=src_path_obj,
+                                use_server=True,
                             )
                     else:
                         # Файловая ИБ
@@ -607,12 +640,14 @@ class ConfigurationConverter(BaseConverter):
                             if src_path_obj.suffix.lower() == '.cf':
                                 result = self.ibcmd_tool.import_config_from_cf(
                                     db_path=ib_dir,
-                                    cf_file=src_path_obj
+                                    cf_file=src_path_obj,
+                                    use_server=False,
                                 )
                             else:
                                 result = self.ibcmd_tool.import_config_from_xml(
                                     db_path=ib_dir,
-                                    xml_path=src_path_obj
+                                    xml_path=src_path_obj,
+                                    use_server=False,
                                 )
                         else:
                             # Создание файловой ИБ с конфигурацией из XML
@@ -964,10 +999,7 @@ class ConfigurationConverter(BaseConverter):
             )
         
         # Проверяем доступность инструментов
-        use_ibcmd_for_intermediate_steps = (
-            target_format in ["XML", "EDT"] and
-            self.convert_tool == 'ibcmd'
-        )
+        use_ibcmd_for_intermediate_steps = self.convert_tool == 'ibcmd'
 
         if use_ibcmd_for_intermediate_steps:
             if not self.ibcmd_tool.is_available():
@@ -1002,7 +1034,8 @@ class ConfigurationConverter(BaseConverter):
                         self._set_server_ib_env(self.dst_path)
                         result = self.ibcmd_tool.import_config_from_cf(
                             db_path=Path('.'),
-                            cf_file=cf_file
+                            cf_file=cf_file,
+                            use_server=True,
                         )
                     else:
                         dst_ib_dir = self._get_file_ib_path_from_value(self.dst_path)
@@ -1010,7 +1043,8 @@ class ConfigurationConverter(BaseConverter):
                         self._ensure_dir(dst_ib_dir)
                         result = self.ibcmd_tool.import_config_from_cf(
                             db_path=dst_ib_dir,
-                            cf_file=cf_file
+                            cf_file=cf_file,
+                            use_server=False,
                         )
                 else:
                     load_log_file = self.temp_dir / 'load_cf.log'

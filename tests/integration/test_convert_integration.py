@@ -6,6 +6,7 @@
 """
 
 import os
+import subprocess
 import sys
 import pytest
 import shutil
@@ -16,7 +17,7 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root / 'src'))
 
 from core.convert import run_conversion, load_env_file, merge_env_files
-from converters.base.tools import V8ToolWrapper
+from converters.base.tools import IbcmdToolWrapper, V8ToolWrapper
 from converters.base.converter import Logger
 
 
@@ -1617,6 +1618,24 @@ class TestConversionIntegration:
             assert result == 0
             assert output_file.exists() and output_file.stat().st_size > 0
 
+        def config_generation_id():
+            wrapper = IbcmdToolWrapper(merged_vars, Logger(silent=True))
+            assert wrapper.is_available()
+            command = [
+                str(wrapper.tool_path),
+                'infobase', 'config', 'generation-id',
+                *wrapper._infobase_connection_args(Path('.'), use_server=True),
+            ]
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+            )
+            assert result.returncode == 0, result.stderr or result.stdout
+            return result.stdout.strip()
+
         server_ib = project_vars['V8_DST_PATH']
         empty_cf = project_root / 'tests' / 'fixtures' / 'edt_xml' / 'ПустаяКонфигурация.cf'
 
@@ -1634,6 +1653,7 @@ class TestConversionIntegration:
             ]) == 0
             assert dt_file.exists() and dt_file.stat().st_size > 0
             dump_config(server_ib, before_cf, f'before_{convert_tool}')
+            before_generation = config_generation_id()
 
             try:
                 assert run_scenario(f'mutate_{convert_tool}', [
@@ -1644,22 +1664,27 @@ class TestConversionIntegration:
                 ]) == 0
                 dump_config(server_ib, mutated_cf, f'mutated_{convert_tool}')
                 assert mutated_cf.read_bytes() != before_cf.read_bytes()
+                assert config_generation_id() != before_generation
 
                 assert run_scenario(f'dt2ib_{convert_tool}', [
                     'ScriptName=dt2ib',
                     f'V8_CONVERT_TOOL={convert_tool}',
                     f'V8_SRC_PATH="{dt_file}"',
                     f'V8_DST_PATH="{server_ib}"',
+                    'V8_IB_UPDATE=1',
                 ]) == 0
                 dump_config(server_ib, after_cf, f'after_{convert_tool}')
-                assert after_cf.read_bytes() == before_cf.read_bytes()
+                assert after_cf.read_bytes() != mutated_cf.read_bytes()
+                assert config_generation_id() == before_generation
             finally:
                 assert run_scenario(f'cleanup_{convert_tool}', [
                     'ScriptName=dt2ib',
                     'V8_CONVERT_TOOL=ibcmd',
                     f'V8_SRC_PATH="{dt_file}"',
                     f'V8_DST_PATH="{server_ib}"',
+                    'V8_IB_UPDATE=1',
                 ]) == 0
+                assert config_generation_id() == before_generation
 
 
 if __name__ == '__main__':
