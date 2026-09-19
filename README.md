@@ -45,20 +45,17 @@
   <sub><b>Главное окно:</b> управление проектами, параметрами и запуском конвертации</sub>
 </p>
 
-<table>
-  <tr>
-    <td width="56%" align="center">
-      <img src="docs/images/gui-execution-log.png" alt="Журнал выполнения конвертации"/>
-      <br/>
-      <sub><b>Журнал выполнения</b></sub>
-    </td>
-    <td width="44%" align="center">
-      <img src="docs/images/gui-project-editor.png" alt="Редактор проекта"/>
-      <br/>
-      <sub><b>Редактор проекта</b></sub>
-    </td>
-  </tr>
-</table>
+<p align="center">
+  <img src="docs/images/gui-execution-log.png" alt="Журнал выполнения конвертации" width="100%"/>
+  <br/>
+  <sub><b>Журнал выполнения</b></sub>
+</p>
+
+<p align="center">
+  <img src="docs/images/gui-project-editor.png" alt="Редактор проекта" width="85%"/>
+  <br/>
+  <sub><b>Редактор проекта</b></sub>
+</p>
 
 <p align="center">
   <img src="docs/images/gui-parameter-help.png" alt="Встроенная подсказка параметра" width="75%"/>
