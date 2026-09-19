@@ -6,6 +6,7 @@
 """
 
 import os
+import subprocess
 import sys
 import pytest
 import shutil
@@ -16,7 +17,7 @@ project_root = Path(__file__).parent.parent.parent
 sys.path.insert(0, str(project_root / 'src'))
 
 from core.convert import run_conversion, load_env_file, merge_env_files
-from converters.base.tools import V8ToolWrapper
+from converters.base.tools import IbcmdToolWrapper, V8ToolWrapper
 from converters.base.converter import Logger
 
 
@@ -1571,6 +1572,119 @@ class TestConversionIntegration:
         exit_code = run_conversion([str(base_env), str(tmp_env)])
         assert exit_code == 0
         assert dst_cf.exists() and dst_cf.stat().st_size > 0
+
+    def test_server_ib_dt_roundtrip(self):
+        """Проверяет фактическое восстановление тестовой серверной ИБ из DT."""
+        if os.environ.get('RUN_DESTRUCTIVE_1C_TESTS') != '1':
+            pytest.skip("Установите RUN_DESTRUCTIVE_1C_TESTS=1 для destructive DT restore")
+        base_env = project_root / 'projects' / 'base.env'
+        project_env = (
+            project_root / 'projects' / 'Demo' / 'ibcmd' /
+            'Демо_cf_в_server_ib_ibcmd' / 'Демо_cf_в_server_ib_ibcmd_conf2ib.env'
+        )
+        base_vars = load_env_file(str(base_env), silent=True)
+        project_vars = load_env_file(str(project_env), silent=True)
+        if not base_vars or not project_vars:
+            pytest.skip("Настройки демонстрационной серверной ИБ не найдены")
+        merged_vars = {**base_vars, **project_vars}
+        required = ['V8_DB_SRV_DBMS', 'V8_IB_SERVER', 'V8_DB_SRV_USR', 'V8_DB_SRV_PWD']
+        ibcmd_available = (
+            Path(base_vars.get('IBCMD_TOOL', '')).exists() and
+            not any(not base_vars.get(key) for key in required)
+        )
+        if not ibcmd_available:
+            pytest.skip("IBCMD или параметры серверной БД не настроены")
+
+        convert_tools = ['ibcmd']
+        if (
+            Path(base_vars.get('V8_TOOL', '')).exists() and
+            merged_vars.get('V8_IB_USER')
+        ):
+            convert_tools.append('designer')
+
+        def run_scenario(name, lines):
+            env_file = self.output_dir / f'{name}.env'
+            with open(env_file, 'w', encoding='utf-8') as f:
+                f.write('\n'.join(lines) + '\n')
+            return run_conversion([str(base_env), str(project_env), str(env_file)])
+
+        def dump_config(server_ib, output_file, name):
+            result = run_scenario(name, [
+                'ScriptName=conf2cf',
+                'V8_CONVERT_TOOL=ibcmd',
+                f'V8_SRC_PATH="{server_ib}"',
+                f'V8_DST_PATH="{output_file}"',
+            ])
+            assert result == 0
+            assert output_file.exists() and output_file.stat().st_size > 0
+
+        def config_generation_id():
+            wrapper = IbcmdToolWrapper(merged_vars, Logger(silent=True))
+            assert wrapper.is_available()
+            command = [
+                str(wrapper.tool_path),
+                'infobase', 'config', 'generation-id',
+                *wrapper._infobase_connection_args(Path('.'), use_server=True),
+            ]
+            result = subprocess.run(
+                command,
+                capture_output=True,
+                text=True,
+                encoding='utf-8',
+                errors='replace',
+            )
+            assert result.returncode == 0, result.stderr or result.stdout
+            return result.stdout.strip()
+
+        server_ib = project_vars['V8_DST_PATH']
+        empty_cf = project_root / 'tests' / 'fixtures' / 'edt_xml' / 'ПустаяКонфигурация.cf'
+
+        for convert_tool in convert_tools:
+            dt_file = self.output_dir / f'server_ib_backup_{convert_tool}.dt'
+            before_cf = self.output_dir / f'before_{convert_tool}.cf'
+            mutated_cf = self.output_dir / f'mutated_{convert_tool}.cf'
+            after_cf = self.output_dir / f'after_{convert_tool}.cf'
+
+            assert run_scenario(f'ib2dt_{convert_tool}', [
+                'ScriptName=ib2dt',
+                f'V8_CONVERT_TOOL={convert_tool}',
+                f'V8_SRC_PATH="{server_ib}"',
+                f'V8_DST_PATH="{dt_file}"',
+            ]) == 0
+            assert dt_file.exists() and dt_file.stat().st_size > 0
+            dump_config(server_ib, before_cf, f'before_{convert_tool}')
+            before_generation = config_generation_id()
+
+            try:
+                assert run_scenario(f'mutate_{convert_tool}', [
+                    'ScriptName=conf2ib',
+                    'V8_CONVERT_TOOL=ibcmd',
+                    f'V8_SRC_PATH="{empty_cf}"',
+                    f'V8_DST_PATH="{server_ib}"',
+                ]) == 0
+                dump_config(server_ib, mutated_cf, f'mutated_{convert_tool}')
+                assert mutated_cf.read_bytes() != before_cf.read_bytes()
+                assert config_generation_id() != before_generation
+
+                assert run_scenario(f'dt2ib_{convert_tool}', [
+                    'ScriptName=dt2ib',
+                    f'V8_CONVERT_TOOL={convert_tool}',
+                    f'V8_SRC_PATH="{dt_file}"',
+                    f'V8_DST_PATH="{server_ib}"',
+                    'V8_IB_UPDATE=1',
+                ]) == 0
+                dump_config(server_ib, after_cf, f'after_{convert_tool}')
+                assert after_cf.read_bytes() != mutated_cf.read_bytes()
+                assert config_generation_id() == before_generation
+            finally:
+                assert run_scenario(f'cleanup_{convert_tool}', [
+                    'ScriptName=dt2ib',
+                    'V8_CONVERT_TOOL=ibcmd',
+                    f'V8_SRC_PATH="{dt_file}"',
+                    f'V8_DST_PATH="{server_ib}"',
+                    'V8_IB_UPDATE=1',
+                ]) == 0
+                assert config_generation_id() == before_generation
 
 
 if __name__ == '__main__':

@@ -27,10 +27,10 @@ cp src/config/base.env.template projects/base.env
 Отредактируйте `projects/base.env`:
 ```ini
 # Версия 1С:Предприятие
-V8_VERSION=8.3.27.1989
+V8_VERSION=8.5.1.1522
 
 # Путь к 1cv8.exe
-V8_TOOL_PATH="C:\Program Files\1cv8\8.3.27.1989\bin\1cv8.exe"
+V8_TOOL_PATH="C:\Program Files\1cv8\8.5.1.1522\bin\1cv8.exe"
 
 # Путь к EDT (1cedtcli или ring)
 EDT_TOOL_PATH="f:\1C\Projects\EDT\installations\1C_EDT 2025.1\1cedt\1cedtcli.exe"
@@ -128,8 +128,8 @@ V8_SRC_PATH=C:\EDT\MyConfiguration
 V8_DST_PATH=C:\Output\MyConfiguration.cf
 
 # Версия и инструменты (если не указаны в base.env)
-V8_VERSION=8.3.27.1989
-V8_TOOL_PATH=C:\Program Files\1cv8\8.3.27.1989\bin\1cv8.exe
+V8_VERSION=8.5.1.1522
+V8_TOOL_PATH=C:\Program Files\1cv8\8.5.1.1522\bin\1cv8.exe
 EDT_TOOL_PATH=C:\Users\YourName\edt\ring.bat
 
 # Дополнительные параметры
