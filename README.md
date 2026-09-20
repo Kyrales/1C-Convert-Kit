@@ -8,6 +8,7 @@
 
 [![Python Version](https://img.shields.io/badge/python-3.8+-blue.svg)]()
 [![Tests](https://img.shields.io/badge/unit%20tests-180%20passed-success)]()
+[![OpenYellow](https://openyellow.openintegrations.dev/data/badges/1170805024.svg)](https://openyellow.org/grid?filter=top&repo=1170805024)
 
 [Возможности](#features) • [Интерфейс](#interface) • [Установка](#installation) • [Быстрый старт](#quick-start) • [Архитектура](#architecture)
 
