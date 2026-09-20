@@ -305,6 +305,10 @@ graph TB
 
 Приветствуются pull requests! Для крупных изменений сначала откройте issue для обсуждения.
 
+## 📄 Лицензия
+
+Проект распространяется по лицензии [MIT](LICENSE).
+
 ## 🙏 Благодарности
 
 Проект основан на [1CFilesConverter](https://github.com/arkuznetsov/1CFilesConverter)
